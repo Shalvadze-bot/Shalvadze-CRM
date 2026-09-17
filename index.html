@@ -38,12 +38,12 @@
 
 <div id="app">
   <header id="topbar">
-    <div class="brandbar" onclick="showSection('dashboard')" style="cursor: pointer;">
+    <div class="brandbar" id="headerNav" style="cursor: pointer;">
       <div class="brand">
         <div class="monogram">S</div>
         <div class="brandtext">
           <span class="wordmark">SHALVADZE</span>
-          <span class="brandsub" id="brandsub">CUSTOMER RELATIONSHIP MANAGEMENT</span>
+          <span class="brandsub" id="brandsub">CRM</span>
         </div>
       </div>
       <div class="brandright">
@@ -51,8 +51,15 @@
         <button class="iconbtn" id="refreshBtn" data-act="refresh" aria-label="Refresh data"></button>
       </div>
     </div>
-    <div class="pagebar" id="pagebar"></div>
   </header>
+
+  <script>
+    document.getElementById('headerNav').addEventListener('click', function() {
+      location.hash = '#/dashboard';
+    });
+  </script>
+
+  <div class="pagebar" id="pagebar"></div>
 
   <div id="ptr"><div class="ptr-pill"><span id="ptrIcon"></span><span id="ptrLabel">Pull to refresh</span></div></div>
   <main id="view" tabindex="-1"></main>

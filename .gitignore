@@ -1,0 +1,32 @@
+```
+# Dependencies
+node_modules/
+
+# Editors
+.vscode/
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.env
+.env.local
+.env.*
+```

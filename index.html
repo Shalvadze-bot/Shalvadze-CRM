@@ -461,6 +461,7 @@
 
   var currentUser = null;
   var authResolved = false;
+  var redirectResultProcessed = false;
 
   /* ============================================================
      HELPER FUNCTIONS
@@ -491,6 +492,7 @@
   }
 
   function showScreen(screen) {
+    console.log('SHOW SCREEN:', screen);
     authLoading.classList.remove('active');
     loginScreen.classList.remove('active');
     accessRestricted.classList.remove('active');
@@ -554,13 +556,19 @@
   }
 
   function handleRedirectResult() {
+    console.log('Checking redirect result...');
     // Check for redirect result on page load
     auth.getRedirectResult().then(function(result) {
       if (result && result.user) {
-        console.log('Google sign-in successful via redirect');
+        console.log('REDIRECT RESULT: User authenticated via redirect');
+        console.log('USER UID:', result.user.uid);
+        console.log('USER EMAIL:', result.user.email);
+        console.log('USER EMAIL VERIFIED:', result.user.emailVerified);
+        console.log('USER PROVIDER DATA:', result.user.providerData);
+        redirectResultProcessed = true;
         // User will be handled by onAuthStateChanged
       } else {
-        console.log('No redirect result found - fresh session or popup flow');
+        console.log('No redirect result found - fresh session or already processed');
       }
     }).catch(function(error) {
       console.error('Redirect sign-in error:', error);
@@ -585,7 +593,11 @@
      AUTH STATE LISTENER
      ============================================================ */
   auth.onAuthStateChanged(function(user) {
-    console.log('Auth state changed:', user ? user.email : 'No user');
+    console.log('AUTH STATE CHANGED:', user ? 'SIGNED IN' : 'SIGNED OUT');
+    if (user) {
+      console.log('AUTH EMAIL:', user.email);
+      console.log('AUTHORIZED:', isEmailAuthorized(user.email) ? 'true' : 'false');
+    }
     
     if (!authResolved) {
       authResolved = true;
@@ -596,16 +608,23 @@
       
       // Check if email is authorized
       if (isEmailAuthorized(user.email)) {
+        console.log('SHOW CRM - User authorized');
         updateUserInfo(user);
         showScreen('app');
       } else {
         // Unauthorized email
+        console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
         restrictedEmail.textContent = user.email;
         updateUserInfo(null);
         showScreen('restricted');
+        // Sign out unauthorized user after a short delay
+        setTimeout(function() {
+          auth.signOut();
+        }, 1000);
       }
     } else {
       // No user - show login
+      console.log('SHOW LOGIN - No user signed in');
       currentUser = null;
       updateUserInfo(null);
       showScreen('login');

@@ -539,42 +539,49 @@
   }
 
   /* ============================================================
-     GOOGLE SIGN-IN (Redirect method for mobile compatibility)
+     GOOGLE SIGN-IN (Popup method for localhost/desktop testing)
      ============================================================ */
   var provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({
     prompt: 'select_account'
   });
-
+  
   function signInWithGoogle() {
-    console.log('Initiating Google sign-in...');
-    // Use redirect for better mobile support
-    auth.signInWithRedirect(provider).catch(function(error) {
-      console.error('signInWithRedirect error:', error);
-      handleAuthError(error);
+    console.log('Initiating Google sign-in (Popup)...');
+    
+    // Set persistence to LOCAL for session survival across refreshes
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .then(function() {
+      // Use popup for reliable localhost/desktop behavior
+      return auth.signInWithPopup(provider);
+    })
+    .then(function(result) {
+      var user = result.user;
+      console.log('AUTH USER:', user.uid);
+      console.log('AUTH EMAIL:', user.email);
+      
+      if (AUTHORIZED_EMAILS.includes(user.email)) {
+        console.log('AUTHORIZED: true');
+        console.log('SHOW CRM - User authorized via Popup');
+        showScreen('app');
+        updateUserInfo(user);
+      } else {
+        console.log('AUTHORIZED: false');
+        console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
+        alert('Access Restricted: ' + user.email + ' is not authorized.');
+        auth.signOut();
+      }
+    })
+    .catch(function(error) {
+      console.error("Sign in error", error);
+      if (error.code === 'auth/popup-blocked') {
+        alert('Popup blocked. Please allow popups for this site.');
+      } else {
+        alert("Error: " + error.message);
+      }
     });
   }
 
-  function handleRedirectResult() {
-    console.log('Checking redirect result...');
-    // Check for redirect result on page load
-    auth.getRedirectResult().then(function(result) {
-      if (result && result.user) {
-        console.log('REDIRECT RESULT: User authenticated via redirect');
-        console.log('USER UID:', result.user.uid);
-        console.log('USER EMAIL:', result.user.email);
-        console.log('USER EMAIL VERIFIED:', result.user.emailVerified);
-        console.log('USER PROVIDER DATA:', result.user.providerData);
-        redirectResultProcessed = true;
-        // User will be handled by onAuthStateChanged
-      } else {
-        console.log('No redirect result found - fresh session or already processed');
-      }
-    }).catch(function(error) {
-      console.error('Redirect sign-in error:', error);
-      handleAuthError(error);
-    });
-  }
 
   /* ============================================================
      SIGN OUT

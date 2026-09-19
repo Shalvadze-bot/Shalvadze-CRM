@@ -545,15 +545,22 @@
   });
 
   function signInWithGoogle() {
+    console.log('Initiating Google sign-in...');
     // Use redirect for better mobile support
-    auth.signInWithRedirect(provider);
+    auth.signInWithRedirect(provider).catch(function(error) {
+      console.error('signInWithRedirect error:', error);
+      handleAuthError(error);
+    });
   }
 
   function handleRedirectResult() {
+    // Check for redirect result on page load
     auth.getRedirectResult().then(function(result) {
       if (result && result.user) {
         console.log('Google sign-in successful via redirect');
         // User will be handled by onAuthStateChanged
+      } else {
+        console.log('No redirect result found - fresh session or popup flow');
       }
     }).catch(function(error) {
       console.error('Redirect sign-in error:', error);

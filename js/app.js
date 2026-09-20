@@ -73,6 +73,7 @@ var ICON_PATHS = {
   phone:'<path d="M6.4 3.5h3l1.5 4-2 1.4a11.5 11.5 0 0 0 5.2 5.2l1.4-2 4 1.5v3a2 2 0 0 1-2.2 2A16.8 16.8 0 0 1 4.4 5.7a2 2 0 0 1 2-2.2z"/>',
   database:'<ellipse cx="12" cy="6" rx="7.6" ry="3"/><path d="M4.4 6v12c0 1.7 3.4 3 7.6 3s7.6-1.3 7.6-3V6"/><path d="M4.4 12c0 1.7 3.4 3 7.6 3s7.6-1.3 7.6-3"/>',
   lock:'<rect x="4.6" y="10.4" width="14.8" height="10" rx="2"/><path d="M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
   eye:'<path d="M2.4 12S6 5.8 12 5.8 21.6 12 21.6 12 18 18.2 12 18.2 2.4 12 2.4 12z"/><circle cx="12" cy="12" r="2.9"/>',
   eyeOff:'<path d="M9.6 6.2A8.7 8.7 0 0 1 12 5.8c6 0 9.6 6.2 9.6 6.2a17 17 0 0 1-2.7 3.5M6.4 7.9A16.7 16.7 0 0 0 2.4 12S6 18.2 12 18.2a9 9 0 0 0 3.6-.7"/><path d="m10 10 4 4M4 4l16 16"/>',
   trendUp:'<path d="M3 17.5 9.5 11l4 4L21 7.5"/><path d="M15.5 7.5H21v5.5"/>',
@@ -1483,14 +1484,18 @@ var Sheets = {
 
 function openMoreSheet(){
   var st=CRM.getStats();
-  // Get current authenticated user from Firebase (if available)
+  // Get current authenticated user from Firebase (if available).
+  // NOTE: `auth` is exposed as `window.auth` by the inline script in index.html.
+  // That script runs inside an IIFE, so a bare `auth` reference here would
+  // always be undefined and the logout section would never render.
+  var fbAuth = (typeof window !== 'undefined' && window.auth) ? window.auth : null;
   var currentUser = null;
   var userEmailDisplay = 'Not signed in';
   var showLogout = false;
-  
+
   // Check if Firebase auth object exists and user is signed in
-  if (typeof auth !== 'undefined' && auth.currentUser) {
-    currentUser = auth.currentUser;
+  if (fbAuth && fbAuth.currentUser) {
+    currentUser = fbAuth.currentUser;
     userEmailDisplay = currentUser.email;
     showLogout = true;
   }
@@ -1529,20 +1534,18 @@ function openMoreSheet(){
       if (moreLogoutBtn) {
         moreLogoutBtn.addEventListener('click', function(e) {
           e.preventDefault();
-          if (typeof auth !== 'undefined') {
-            auth.signOut().then(function() {
+          if (fbAuth) {
+            fbAuth.signOut().then(function() {
               console.log('User signed out from More menu');
               Sheets.close();
-              // Trigger auth state change which will redirect to login
-              if (typeof onAuthStateChanged !== 'undefined') {
-                // Auth state listener will handle the redirect
-              } else {
-                location.reload();
-              }
+              // The auth-state listener in index.html fires on sign-out
+              // and switches back to the login screen automatically.
             }).catch(function(error) {
               console.error('Sign out error:', error);
               alert('Error signing out: ' + error.message);
             });
+          } else {
+            console.warn('Firebase auth not available for sign-out');
           }
         });
       }

@@ -358,6 +358,7 @@
     max-height: calc(100vh - 64px);
     margin: 32px auto;
   }
+}
 </style>
 </head>
 <body>
@@ -498,6 +499,9 @@
   // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
   var auth = firebase.auth();
+  // Expose auth globally: this inline script runs inside an IIFE, so without
+  // this line `auth` would be invisible to js/app.js (More menu logout, etc.).
+  window.auth = auth;
 
   // DOM Elements
   var authLoading = document.getElementById('authLoading');
@@ -511,7 +515,6 @@
 
   var currentUser = null;
   var authResolved = false;
-  var redirectResultProcessed = false;
 
   /* ============================================================
      HELPER FUNCTIONS
@@ -546,6 +549,8 @@
     authLoading.classList.remove('active');
     loginScreen.classList.remove('active');
     accessRestricted.classList.remove('active');
+    // Keep the CRM itself hidden until the user is authorized
+    if (screen !== 'app') app.classList.add('hidden');
     if (screen === 'loading') {
       authLoading.classList.add('active');
     } else if (screen === 'login') {
@@ -686,9 +691,6 @@
     e.preventDefault();
     signOut();
   });
-
-  // Handle redirect result on page load
-  handleRedirectResult();
 
   /* ============================================================
      INITIAL STATE

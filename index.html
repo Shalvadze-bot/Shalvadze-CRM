@@ -367,17 +367,6 @@
         </div>
       </div>
       <div class="brandright">
-        <div id="userInfo">
-          <div class="user-avatar" id="userAvatar"></div>
-          <span class="user-email" id="userEmail"></span>
-          <button class="logout-btn" id="logoutBtn" aria-label="Sign out">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <path d="M16 17l5-5-5-5"/>
-              <path d="M21 12H9"/>
-            </svg>
-          </button>
-        </div>
         <button class="srcpill" id="srcPill" data-act="open-source-sheet"><span class="dot"></span><span id="srcLabel">LOCAL</span></button>
         <button class="iconbtn" id="refreshBtn" data-act="refresh" aria-label="Refresh data"></button>
       </div>
@@ -453,11 +442,7 @@
   var splash = document.getElementById('splash');
   var googleSignInBtn = document.getElementById('googleSignInBtn');
   var signOutBtn = document.getElementById('signOutBtn');
-  var logoutBtn = document.getElementById('logoutBtn');
   var restrictedEmail = document.getElementById('restrictedEmail');
-  var userInfo = document.getElementById('userInfo');
-  var userAvatar = document.getElementById('userAvatar');
-  var userEmail = document.getElementById('userEmail');
 
   var currentUser = null;
   var authResolved = false;
@@ -515,16 +500,6 @@
     }
   }
 
-  function updateUserInfo(user) {
-    if (user) {
-      userAvatar.textContent = getInitials(user.displayName, user.email);
-      userEmail.textContent = user.email;
-      userInfo.classList.add('visible');
-    } else {
-      userInfo.classList.remove('visible');
-    }
-  }
-
   function handleAuthError(error) {
     console.error('Authentication error:', error);
     var message = 'Authentication failed. Please try again.';
@@ -564,7 +539,6 @@
         console.log('AUTHORIZED: true');
         console.log('SHOW CRM - User authorized via Popup');
         showScreen('app');
-        updateUserInfo(user);
       } else {
         console.log('AUTHORIZED: false');
         console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
@@ -616,13 +590,11 @@
       // Check if email is authorized
       if (isEmailAuthorized(user.email)) {
         console.log('SHOW CRM - User authorized');
-        updateUserInfo(user);
         showScreen('app');
       } else {
         // Unauthorized email
         console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
         restrictedEmail.textContent = user.email;
-        updateUserInfo(null);
         showScreen('restricted');
         // Sign out unauthorized user after a short delay
         setTimeout(function() {
@@ -633,7 +605,6 @@
       // No user - show login
       console.log('SHOW LOGIN - No user signed in');
       currentUser = null;
-      updateUserInfo(null);
       showScreen('login');
     }
   });
@@ -647,11 +618,6 @@
   });
 
   signOutBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    signOut();
-  });
-
-  logoutBtn.addEventListener('click', function(e) {
     e.preventDefault();
     signOut();
   });

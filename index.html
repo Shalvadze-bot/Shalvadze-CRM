@@ -593,13 +593,9 @@
   
   function signInWithGoogle() {
     console.log('Initiating Google sign-in (Popup)...');
-    
-    // Set persistence to LOCAL for session survival across refreshes
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-    .then(function() {
-      // Use popup for reliable localhost/desktop behavior
-      return auth.signInWithPopup(provider);
-    })
+
+    // Open the popup directly from the user-triggered click handler.
+    auth.signInWithPopup(provider)
     .then(function(result) {
       var user = result.user;
       console.log('AUTH USER:', user.uid);

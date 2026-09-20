@@ -12,6 +12,7 @@ const CRM_SPREADSHEET_ID = process.env.SHALVADZE_CRM_SPREADSHEET_ID || '120g7CHP
 const CALENDAR_FILE_ID = process.env.SHALVADZE_MARKETING_CALENDAR_FILE_ID || '12QkVZL7LKFUhf_z4NBd3W2hlyL2-tqAA';
 const AUTHORIZED_EMAIL = (process.env.SHALVADZE_AUTHORIZED_EMAIL || 'taha@shalvadze.com').toLowerCase();
 const DEFAULT_ORIGINS = [
+  'https://shalvadze-bot.github.io',
   'http://localhost',
   'http://localhost:3000',
   'http://localhost:8765',

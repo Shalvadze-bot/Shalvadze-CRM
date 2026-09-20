@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
 <title>SHALVADZE · Founder CRM</title>
 <meta name="description" content="Read-only mobile CRM viewer for SHALVADZE — sourcing, outreach pipeline, opportunities and company intelligence." />
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex" />
+<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex" />
+<meta name="bingbot" content="noindex,nofollow,noarchive,nosnippet,noimageindex" />
 
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-400-normal.css" />
@@ -412,10 +415,10 @@
 <div class="desk-note">
   <div class="dn-mono">S</div>
   <h1>SHALVADZE</h1>
-  <div class="dn-sub">Founder CRM · Read-only prototype</div>
-  <p>A mobile-first summary layer over the Google Sheets CRM. Optimised for 390–430px. Every screen renders from one data-service layer, so the local JSON source can be swapped for a live Apps Script endpoint without touching the UI.</p>
+  <div class="dn-sub">Founder CRM · Read-only live viewer</div>
+  <p>A mobile-first summary layer over the private CRM sources. Optimised for 390–430px. Every screen renders from one authenticated, normalized application snapshot.</p>
   <ul class="dn-list">
-    <li><b>Data</b> <span>Inlined /data/crm.json · cached snapshot</span></li>
+    <li><b>Data</b> <span>Private CRM workbook + Master Commercial Calendar</span></li>
     <li><b>Service</b> <span>window.CRM (getCompanies, getActions…)</span></li>
     <li><b>Rules</b> <span>One active stage per prospect · suppression</span></li>
     <li><b>Mode</b> <span>Read-only — no write-back, no sending</span></li>
@@ -470,7 +473,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
 <script src="js/app.js"></script>
-<script src="data/crm.json" type="application/json"></script>
 
 <script>
 (function() {
@@ -601,7 +603,7 @@
       console.log('AUTH USER:', user.uid);
       console.log('AUTH EMAIL:', user.email);
       
-      if (AUTHORIZED_EMAILS.includes(user.email)) {
+      if (isEmailAuthorized(user.email)) {
         console.log('AUTHORIZED: true');
         console.log('SHOW CRM - User authorized via Popup');
         showScreen('app');
@@ -657,6 +659,7 @@
       if (isEmailAuthorized(user.email)) {
         console.log('SHOW CRM - User authorized');
         showScreen('app');
+        if (window.reloadCRMData) window.reloadCRMData();
       } else {
         // Unauthorized email
         console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);

@@ -20,8 +20,394 @@
 <meta name="apple-mobile-web-app-title" content="SHALVADZE CRM" />
 
 <link rel="stylesheet" href="css/styles.css" />
+<style>
+/* ========== LOGIN SCREEN STYLES ========== */
+#loginScreen {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(1200px 700px at 15% -10%, #26221A 0%, rgba(38,34,26,0) 60%),
+              radial-gradient(900px 600px at 110% 110%, #1E2A33 0%, rgba(30,42,51,0) 55%),
+              #0E0D0B;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+#loginScreen.active { display: flex; }
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+
+.login-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #2A2620, #15140F);
+  border: 1px solid rgba(198,161,91,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--fs);
+  font-size: 38px;
+  color: var(--gold-2);
+  margin: 0 auto 22px;
+  line-height: 1;
+}
+
+.login-title {
+  font-family: var(--fs);
+  font-size: 34px;
+  letter-spacing: .06em;
+  color: #F3EEE3;
+  font-weight: 400;
+  margin: 0;
+}
+
+.login-subtitle {
+  font-size: 11px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: #8E8471;
+  margin-top: 8px;
+}
+
+.login-tagline {
+  font-size: 13px;
+  color: #9C937F;
+  margin-top: 18px;
+  line-height: 1.6;
+}
+
+.login-divider {
+  width: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(198,161,91,.4), transparent);
+  margin: 24px auto;
+}
+
+.google-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0,0,0,.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #15140F;
+  cursor: pointer;
+  transition: transform .16s var(--ease), box-shadow .2s, background .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.google-btn:hover { background: #F8F7F5; }
+.google-btn:active { transform: scale(.97); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.google-btn svg { width: 20px; height: 20px; }
+
+.login-note {
+  font-size: 11.5px;
+  color: #7A7163;
+  margin-top: 16px;
+  line-height: 1.5;
+}
+
+/* ========== AUTH LOADING SCREEN ========== */
+#authLoading {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(1200px 700px at 15% -10%, #26221A 0%, rgba(38,34,26,0) 60%),
+              radial-gradient(900px 600px at 110% 110%, #1E2A33 0%, rgba(30,42,51,0) 55%),
+              #0E0D0B;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 999;
+}
+#authLoading.active { display: flex; }
+
+.auth-loading-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #2A2620, #15140F);
+  border: 1px solid rgba(198,161,91,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--fs);
+  font-size: 32px;
+  color: var(--gold-2);
+  margin-bottom: 18px;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .7; transform: scale(.98); }
+}
+
+.auth-loading-text {
+  font-size: 13px;
+  color: #9C937F;
+  letter-spacing: .02em;
+}
+
+/* ========== ACCESS RESTRICTED ========== */
+#accessRestricted {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(1200px 700px at 15% -10%, #26221A 0%, rgba(38,34,26,0) 60%),
+              radial-gradient(900px 600px at 110% 110%, #1E2A33 0%, rgba(30,42,51,0) 55%),
+              #0E0D0B;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1001;
+}
+#accessRestricted.active { display: flex; }
+
+.restricted-card {
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+}
+
+.restricted-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: rgba(165,64,44,.12);
+  border: 1px solid rgba(165,64,44,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+.restricted-icon svg { width: 28px; height: 28px; color: var(--danger); }
+
+.restricted-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #F3EEE3;
+  margin: 0;
+}
+
+.restricted-message {
+  font-size: 13px;
+  color: #8E8471;
+  margin-top: 10px;
+  line-height: 1.55;
+}
+
+.restricted-email {
+  font-size: 12px;
+  color: #A79E8D;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.04);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.06);
+  word-break: break-all;
+}
+
+.restricted-btn {
+  margin-top: 20px;
+  width: 100%;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--ink);
+  border: 1px solid rgba(255,255,255,.08);
+  color: #F4EFE4;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: transform .16s var(--ease), background .2s;
+}
+.restricted-btn:active { transform: scale(.97); background: #1F1D18; }
+
+/* Hide app content when not authenticated */
+#app.hidden { display: none; }
+
+/* User info in header */
+#userInfo {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,.06);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.08);
+}
+#userInfo.visible { display: flex; }
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--gold-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+}
+.user-email {
+  font-size: 11px;
+  color: #C9C0AE;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logout-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8E8471;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  cursor: pointer;
+  transition: all .16s var(--ease);
+}
+.logout-btn:active { transform: scale(.92); background: rgba(255,255,255,.08); }
+.logout-btn svg { width: 14px; height: 14px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s var(--ease);
+  border: 1px solid transparent;
+}
+.btn:active { transform: scale(0.96); }
+.btn-block {
+  display: flex;
+  width: 100%;
+}
+
+/* Logout Button Styles in More Menu - Mobile First */
+.more-logout-container {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.more-account-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.more-account-email {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  word-break: break-all;
+  max-width: 90%;
+}
+.more-sign-out-btn {
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #f87171;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+.more-sign-out-btn:hover {
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.5);
+  color: #ef4444;
+}
+.more-sign-out-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+@media (min-width: 900px) {
+  #loginScreen, #authLoading, #accessRestricted {
+    border-radius: 34px;
+    overflow: hidden;
+    max-width: 430px;
+    max-height: calc(100vh - 64px);
+    margin: 32px auto;
+  }
+}
+</style>
 </head>
 <body>
+
+<!-- Auth Loading Screen -->
+<div id="authLoading" role="status" aria-live="polite">
+  <div class="auth-loading-mark">S</div>
+  <div class="auth-loading-text">Checking authentication...</div>
+</div>
+
+<!-- Login Screen -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">S</div>
+    <h1 class="login-title">SHALVADZE</h1>
+    <div class="login-subtitle">CRM</div>
+    <div class="login-tagline">Private Business System</div>
+    
+    <div class="login-divider"></div>
+    
+    <button id="googleSignInBtn" class="google-btn">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    
+    <div class="login-note">Authorized SHALVADZE accounts only</div>
+  </div>
+</div>
+
+<!-- Access Restricted Screen -->
+<div id="accessRestricted">
+  <div class="restricted-card">
+    <div class="restricted-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4.6" y="10.4" width="14.8" height="10" rx="2"/>
+        <path d="M8.2 10.4V7.6a3.8 3.8 0 0 1 7.6 0v2.8"/>
+      </svg>
+    </div>
+    <h2 class="restricted-title">Access Restricted</h2>
+    <p class="restricted-message">This account is not authorized to access SHALVADZE CRM.</p>
+    <div class="restricted-email" id="restrictedEmail"></div>
+    <button id="signOutBtn" class="restricted-btn">Sign Out</button>
+  </div>
+</div>
 
 <div class="desk-note">
   <div class="dn-mono">S</div>
@@ -36,7 +422,7 @@
   </ul>
 </div>
 
-<div id="app">
+<div id="app" class="hidden">
   <header id="topbar">
     <div class="brandbar" id="headerNav" style="cursor: pointer;">
       <div class="brand">
@@ -79,8 +465,241 @@
   <div class="sp-track"><div class="sp-bar"></div></div>
 </div>
 
-<script src="data/crm.json"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
 <script src="js/app.js"></script>
+<script src="data/crm.json" type="application/json"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ============================================================
+     AUTHORIZED EMAILS — Edit this list to grant access
+     ============================================================ */
+  var AUTHORIZED_EMAILS = [
+    'taha@shalvadze.com'
+  ];
+
+  /* ============================================================
+     FIREBASE CONFIGURATION
+     ============================================================ */
+  var firebaseConfig = {
+    apiKey: "AIzaSyAtVTENcIKa8owKX9C2LsnjP6hXKf7lyJI",
+    authDomain: "shalvadze-crm.firebaseapp.com",
+    projectId: "shalvadze-crm",
+    storageBucket: "shalvadze-crm.firebasestorage.app",
+    messagingSenderId: "1020728854879",
+    appId: "1:1020728854879:web:e75171cb6be214ab860eea",
+    measurementId: "G-0LCC41G3WY"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  // Expose auth globally: this inline script runs inside an IIFE, so without
+  // this line `auth` would be invisible to js/app.js (More menu logout, etc.).
+  window.auth = auth;
+
+  // DOM Elements
+  var authLoading = document.getElementById('authLoading');
+  var loginScreen = document.getElementById('loginScreen');
+  var accessRestricted = document.getElementById('accessRestricted');
+  var app = document.getElementById('app');
+  var splash = document.getElementById('splash');
+  var googleSignInBtn = document.getElementById('googleSignInBtn');
+  var signOutBtn = document.getElementById('signOutBtn');
+  var restrictedEmail = document.getElementById('restrictedEmail');
+
+  var currentUser = null;
+  var authResolved = false;
+
+  /* ============================================================
+     HELPER FUNCTIONS
+     ============================================================ */
+  function isEmailAuthorized(email) {
+    if (!email) return false;
+    var lowerEmail = email.toLowerCase();
+    for (var i = 0; i < AUTHORIZED_EMAILS.length; i++) {
+      if (AUTHORIZED_EMAILS[i].toLowerCase() === lowerEmail) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function getInitials(name, email) {
+    if (name && name.trim()) {
+      var parts = name.trim().split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return name.trim().substring(0, 2).toUpperCase();
+    }
+    if (email) {
+      return email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  }
+
+  function showScreen(screen) {
+    console.log('SHOW SCREEN:', screen);
+    authLoading.classList.remove('active');
+    loginScreen.classList.remove('active');
+    accessRestricted.classList.remove('active');
+    // Keep the CRM itself hidden until the user is authorized
+    if (screen !== 'app') app.classList.add('hidden');
+    if (screen === 'loading') {
+      authLoading.classList.add('active');
+    } else if (screen === 'login') {
+      loginScreen.classList.add('active');
+    } else if (screen === 'restricted') {
+      accessRestricted.classList.add('active');
+    } else if (screen === 'app') {
+      app.classList.remove('hidden');
+      // Hide splash after a short delay
+      setTimeout(function() {
+        splash.setAttribute('data-hidden', '1');
+        splash.style.opacity = '0';
+        setTimeout(function() {
+          if (splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 480);
+      }, 300);
+    }
+  }
+
+  function handleAuthError(error) {
+    console.error('Authentication error:', error);
+    var message = 'Authentication failed. Please try again.';
+    if (error.code === 'auth/popup-closed-by-user') {
+      message = 'Sign-in was cancelled.';
+    } else if (error.code === 'auth/network-request-failed') {
+      message = 'Network error. Please check your connection.';
+    } else if (error.code === 'auth/unauthorized-domain') {
+      message = 'This domain is not authorized for sign-in.';
+    }
+    alert(message);
+  }
+
+  /* ============================================================
+     GOOGLE SIGN-IN (Popup method for localhost/desktop testing)
+     ============================================================ */
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+  
+  function signInWithGoogle() {
+    console.log('Initiating Google sign-in (Popup)...');
+    
+    // Set persistence to LOCAL for session survival across refreshes
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .then(function() {
+      // Use popup for reliable localhost/desktop behavior
+      return auth.signInWithPopup(provider);
+    })
+    .then(function(result) {
+      var user = result.user;
+      console.log('AUTH USER:', user.uid);
+      console.log('AUTH EMAIL:', user.email);
+      
+      if (AUTHORIZED_EMAILS.includes(user.email)) {
+        console.log('AUTHORIZED: true');
+        console.log('SHOW CRM - User authorized via Popup');
+        showScreen('app');
+      } else {
+        console.log('AUTHORIZED: false');
+        console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
+        alert('Access Restricted: ' + user.email + ' is not authorized.');
+        auth.signOut();
+      }
+    })
+    .catch(function(error) {
+      console.error("Sign in error", error);
+      if (error.code === 'auth/popup-blocked') {
+        alert('Popup blocked. Please allow popups for this site.');
+      } else {
+        alert("Error: " + error.message);
+      }
+    });
+  }
+
+
+  /* ============================================================
+     SIGN OUT
+     ============================================================ */
+  function signOut() {
+    auth.signOut().then(function() {
+      console.log('User signed out');
+      currentUser = null;
+      showScreen('login');
+    }).catch(function(error) {
+      console.error('Sign out error:', error);
+    });
+  }
+
+  /* ============================================================
+     AUTH STATE LISTENER
+     ============================================================ */
+  auth.onAuthStateChanged(function(user) {
+    console.log('AUTH STATE CHANGED:', user ? 'SIGNED IN' : 'SIGNED OUT');
+    if (user) {
+      console.log('AUTH EMAIL:', user.email);
+      console.log('AUTHORIZED:', isEmailAuthorized(user.email) ? 'true' : 'false');
+    }
+    
+    if (!authResolved) {
+      authResolved = true;
+    }
+
+    if (user) {
+      currentUser = user;
+      
+      // Check if email is authorized
+      if (isEmailAuthorized(user.email)) {
+        console.log('SHOW CRM - User authorized');
+        showScreen('app');
+      } else {
+        // Unauthorized email
+        console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
+        restrictedEmail.textContent = user.email;
+        showScreen('restricted');
+        // Sign out unauthorized user after a short delay
+        setTimeout(function() {
+          auth.signOut();
+        }, 1000);
+      }
+    } else {
+      // No user - show login
+      console.log('SHOW LOGIN - No user signed in');
+      currentUser = null;
+      showScreen('login');
+    }
+  });
+
+  /* ============================================================
+     EVENT LISTENERS
+     ============================================================ */
+  googleSignInBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    signInWithGoogle();
+  });
+
+  signOutBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    signOut();
+  });
+
+  /* ============================================================
+     INITIAL STATE
+     ============================================================ */
+  // Show loading screen initially
+  showScreen('loading');
+
+})();
+</script>
 
 </body>
 </html>

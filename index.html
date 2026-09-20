@@ -301,6 +301,55 @@
   width: 100%;
 }
 
+/* Logout Button Styles in More Menu - Mobile First */
+.more-logout-container {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.more-account-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.more-account-email {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  word-break: break-all;
+  max-width: 90%;
+}
+.more-sign-out-btn {
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #f87171;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+.more-sign-out-btn:hover {
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.5);
+  color: #ef4444;
+}
+.more-sign-out-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
 @media (min-width: 900px) {
   #loginScreen, #authLoading, #accessRestricted {
     border-radius: 34px;
@@ -308,55 +357,6 @@
     max-width: 430px;
     max-height: calc(100vh - 64px);
     margin: 32px auto;
-  }
-  
-  /* Logout Button Styles in More Menu */
-  .more-logout-container {
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-  .more-account-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: rgba(255, 255, 255, 0.5);
-  }
-  .more-account-email {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.8);
-    word-break: break-all;
-    max-width: 90%;
-  }
-  .more-sign-out-btn {
-    background: rgba(220, 38, 38, 0.15);
-    border: 1px solid rgba(220, 38, 38, 0.3);
-    color: #f87171;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-    margin-top: 4px;
-  }
-  .more-sign-out-btn:hover {
-    background: rgba(220, 38, 38, 0.25);
-    border-color: rgba(220, 38, 38, 0.5);
-    color: #ef4444;
-  }
-  .more-sign-out-btn svg {
-    width: 14px;
-    height: 14px;
-    fill: currentColor;
   }
 </style>
 </head>

@@ -283,6 +283,23 @@
 }
 .logout-btn:active { transform: scale(.92); background: rgba(255,255,255,.08); }
 .logout-btn svg { width: 14px; height: 14px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s var(--ease);
+  border: 1px solid transparent;
+}
+.btn:active { transform: scale(0.96); }
+.btn-block {
+  display: flex;
+  width: 100%;
+}
 
 @media (min-width: 900px) {
   #loginScreen, #authLoading, #accessRestricted {

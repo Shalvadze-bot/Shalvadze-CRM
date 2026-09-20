@@ -1483,6 +1483,18 @@ var Sheets = {
 
 function openMoreSheet(){
   var st=CRM.getStats();
+  // Get current authenticated user from Firebase (if available)
+  var currentUser = null;
+  var userEmailDisplay = 'Not signed in';
+  var showLogout = false;
+  
+  // Check if Firebase auth object exists and user is signed in
+  if (typeof auth !== 'undefined' && auth.currentUser) {
+    currentUser = auth.currentUser;
+    userEmailDisplay = currentUser.email;
+    showLogout = true;
+  }
+  
   var html=
     '<div class="menu-group"><div class="micro" style="margin:2px 2px 6px">Pipeline &amp; people</div>'+
       Sheets.menuItem('#/contacts','users','Contacts','Buyers, confidence and verification status', st.contacts)+
@@ -1495,10 +1507,47 @@ function openMoreSheet(){
     '</div>'+
     '<div class="menu-group"><div class="micro" style="margin:2px 2px 6px">System</div>'+
       Sheets.menuItem('#/settings','database','Settings &amp; Data Status','Source, cache, schema and architecture', null)+
-    '</div>'+
-    '<div class="banner ink" style="margin-top:4px">'+icon('lock')+
-      '<p><b style="color:#EDE6D6">Read-only prototype.</b> The Google Sheet remains the source of truth. No add, edit, delete, send or status change is possible from this app.</p></div>';
+    '</div>';
+  
+  // Add Account section if user is signed in
+  if (showLogout) {
+    html += '<div class="menu-group" style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08)">'+
+      '<div class="micro" style="margin:2px 2px 6px">Account</div>'+
+      '<div class="kv" style="margin-bottom:8px"><span class="k" style="flex:0 0 80px;font-size:12px;color:rgba(255,255,255,0.7)">Email</span><span class="v" style="font-size:12px;color:#EDE6D6;word-break:break-all">'+userEmailDisplay+'</span></div>'+
+      '<button id="moreLogoutBtn" class="btn btn-block" style="background:rgba(220,38,38,0.15);border:1px solid rgba(220,38,38,0.3);color:#f87171;padding:8px;font-size:13px">'+icon('logout')+'Sign Out</button>'+
+    '</div>';
+  }
+  
+  html += '<div class="banner ink" style="margin-top:4px">'+icon('lock')+
+    '<p><b style="color:#EDE6D6">Read-only prototype.</b> The Google Sheet remains the source of truth. No add, edit, delete, send or status change is possible from this app.</p></div>';
   Sheets.open(html, {title:'More'});
+  
+  // Attach logout event listener if button exists
+  if (showLogout) {
+    setTimeout(function() {
+      var moreLogoutBtn = document.getElementById('moreLogoutBtn');
+      if (moreLogoutBtn) {
+        moreLogoutBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (typeof auth !== 'undefined') {
+            auth.signOut().then(function() {
+              console.log('User signed out from More menu');
+              Sheets.close();
+              // Trigger auth state change which will redirect to login
+              if (typeof onAuthStateChanged !== 'undefined') {
+                // Auth state listener will handle the redirect
+              } else {
+                location.reload();
+              }
+            }).catch(function(error) {
+              console.error('Sign out error:', error);
+              alert('Error signing out: ' + error.message);
+            });
+          }
+        });
+      }
+    }, 100);
+  }
 }
 
 function openSourceSheet(){

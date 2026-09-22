@@ -97,7 +97,7 @@ function icon(name){
 /* ============================================================================
    1. DATE UTILITIES + RELATIVE TOKEN RESOLVER
    ----------------------------------------------------------------------------
-   Demo tokens keep the sample data permanently "live":
+   Relative tokens support explicit date/time values from the snapshot:
      "D+3" / "D-1"  -> local date string yyyy-mm-dd
      "T-4h" / "T-2d"-> epoch milliseconds
    FIX: the date pattern now REQUIRES an explicit sign (or a bare 0) so the
@@ -256,7 +256,7 @@ var Cache = (function(){
   };
 })();
 
-/* Never reuse prototype or legacy local snapshots. */
+/* Never reuse legacy local snapshots. */
 try{ window.localStorage.removeItem('shalvadze.crm.cache.v1'); }catch(e){}
 
 /* ============================================================================
@@ -1070,7 +1070,7 @@ var Pages = {
     }).join('') : '<p class="hint" style="padding:8px 0">No upcoming actions scheduled.</p>')+'</div>';
 
     h+='<div class="note" style="margin-top:16px">'+icon('info')+'<span>'+safeNum(st.hiddenStages)+' future cadence stages are hidden until they become current. Read-only view of the Google Sheets CRM.</span></div>';
-    h+='<div class="footmark">SHALVADZE · <b>Founder CRM</b> · read-only prototype</div>';
+    h+='<div class="footmark">SHALVADZE · <b>Founder CRM</b> · read-only live viewer</div>';
     return h;
   },
 
@@ -1417,7 +1417,7 @@ var Pages = {
       '<div class="kv"><span class="k">Status</span><span class="v">'+esc(m.label)+'</span></div>'+
       '<div class="kv"><span class="k">Intended recipient</span><span class="v" style="font-size:11.5px">'+esc(d.recipient)+'</span></div>'+
     '</div>';
-    h+='<div class="banner" style="margin-top:10px">'+icon('lock')+'<p>Approve &amp; send is intentionally disabled in this prototype — sending stays in Gmail with the Outreach Agent.</p></div>';
+    h+='<div class="banner" style="margin-top:10px">'+icon('lock')+'<p>Approve &amp; send is intentionally disabled in this read-only viewer — sending stays in Gmail with the Outreach Agent.</p></div>';
     h+='<button class="btn btn-block" disabled>'+icon('lock')+'Approve &amp; send — future functionality</button>';
     if(c.id) h+='<button class="btn btn-block" style="margin-top:9px" data-nav="#/company/'+esc(c.id)+'">'+icon('building')+'Open '+esc(c.name||'company')+'</button>';
     h+='<div class="footmark">'+esc(d.id)+' · read-only</div>';
@@ -1541,7 +1541,7 @@ var Pages = {
       h+='<div class="group"><div class="grouphead g-week"><span class="gl">Recently Completed</span><span class="gc">'+past.length+'</span><span class="gr"></span></div>'+
         '<div class="card pad" style="opacity:.85">'+past.map(mkItem).join('')+'</div></div>';
     }
-    h+='<div class="note">'+icon('calendar')+'<span>Sample marketing data for prototype evaluation. Statuses: Idea · Planned · Draft · In Progress · Confirmed · Completed.</span></div>';
+    h+='<div class="note">'+icon('calendar')+'<span>Marketing records are read from the private Master Commercial Calendar. Statuses: Idea · Planned · Draft · In Progress · Confirmed · Completed.</span></div>';
     return h;
   },
   marketingMonth:function(items){

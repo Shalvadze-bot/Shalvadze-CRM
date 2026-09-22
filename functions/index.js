@@ -10,7 +10,7 @@ admin.initializeApp();
 
 const CRM_SPREADSHEET_ID = process.env.SHALVADZE_CRM_SPREADSHEET_ID || '120g7CHP5lPDUx0QwQOZXd572y0sM8rP52-qWxTsv6og';
 const CALENDAR_FILE_ID = process.env.SHALVADZE_MARKETING_CALENDAR_FILE_ID || '12QkVZL7LKFUhf_z4NBd3W2hlyL2-tqAA';
-const AUTHORIZED_EMAIL = (process.env.SHALVADZE_AUTHORIZED_EMAIL || 'taha@shalvadze.com').toLowerCase();
+const AUTHORIZED_EMAIL = String(process.env.SHALVADZE_AUTHORIZED_EMAIL || 'taha@shalvadze.com').trim().toLowerCase();
 const DEFAULT_ORIGINS = [
   'https://shalvadze-bot.github.io',
   'http://localhost',
@@ -457,7 +457,8 @@ async function verifyRequest(req) {
   const header = text(req.get('authorization'));
   if (!/^Bearer\s+/i.test(header)) throw Object.assign(new Error('Authentication required.'), { status: 401 });
   const decoded = await admin.auth().verifyIdToken(header.replace(/^Bearer\s+/i, '').trim());
-  if (!decoded.email || decoded.email.toLowerCase() !== AUTHORIZED_EMAIL || decoded.email_verified !== true) {
+  const tokenEmail = String(decoded.email || '').trim().toLowerCase();
+  if (!tokenEmail || tokenEmail !== AUTHORIZED_EMAIL || decoded.email_verified !== true) {
     throw Object.assign(new Error('Access denied.'), { status: 403 });
   }
   return decoded;

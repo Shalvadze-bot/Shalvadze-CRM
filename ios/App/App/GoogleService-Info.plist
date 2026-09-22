@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>1020728854879-6p2agpjrhdrrnsgoe0hafq42p079snkm.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1020728854879-6p2agpjrhdrrnsgoe0hafq42p079snkm</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDC2ab58xrvg_XEaPU1U102tJEEPDGsjQM</string>
+	<key>GCM_SENDER_ID</key>
+	<string>1020728854879</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.shalvadze.crm</string>
+	<key>PROJECT_ID</key>
+	<string>shalvadze-crm</string>
+	<key>STORAGE_BUCKET</key>
+	<string>shalvadze-crm.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:1020728854879:ios:f323abd564213e45860eea</string>
+</dict>
+</plist>

@@ -469,6 +469,7 @@
 </div>
 
 <!-- Firebase SDK -->
+<script src="capacitor.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
@@ -592,8 +593,62 @@
   provider.setCustomParameters({
     prompt: 'select_account'
   });
+
+  var nativeFirebaseAuth = null;
+  var nativeSignInInProgress = false;
+  if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' &&
+      window.Capacitor.isNativePlatform() && typeof window.Capacitor.registerPlugin === 'function') {
+    nativeFirebaseAuth = window.Capacitor.registerPlugin('GoogleSignIn');
+  }
   
   function signInWithGoogle() {
+    if (nativeFirebaseAuth) {
+      if (nativeSignInInProgress) return;
+      nativeSignInInProgress = true;
+      googleSignInBtn.disabled = true;
+      console.log('Initiating Google sign-in (native iOS)...');
+
+      nativeFirebaseAuth.signInWithGoogle({ skipNativeAuth: true })
+      .then(function(result) {
+        var credential = result && result.credential;
+        if (!credential || !credential.idToken) {
+          throw new Error('Native Google sign-in did not return a Firebase credential.');
+        }
+
+        return auth.signInWithCredential(
+          firebase.auth.GoogleAuthProvider.credential(
+            credential.idToken,
+            credential.accessToken || null
+          )
+        );
+      })
+      .then(function(result) {
+        var user = result.user;
+        console.log('AUTH USER:', user.uid);
+        console.log('AUTH EMAIL:', user.email);
+
+        if (isEmailAuthorized(user.email)) {
+          console.log('AUTHORIZED: true');
+          console.log('SHOW CRM - User authorized via native Google sign-in');
+          showScreen('app');
+        } else {
+          console.log('AUTHORIZED: false');
+          console.log('SIGNING OUT UNAUTHORIZED USER:', user.email);
+          alert('Access Restricted: ' + user.email + ' is not authorized.');
+          auth.signOut();
+        }
+      })
+      .catch(function(error) {
+        console.error('Native sign in error', error);
+        alert('Error: ' + error.message);
+      })
+      .then(function() {
+        nativeSignInInProgress = false;
+        googleSignInBtn.disabled = false;
+      });
+      return;
+    }
+
     console.log('Initiating Google sign-in (Popup)...');
 
     // Open the popup directly from the user-triggered click handler.

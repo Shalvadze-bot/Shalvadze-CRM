@@ -5,6 +5,7 @@ const XLSX = require('xlsx');
 const admin = require('firebase-admin');
 const { onRequest } = require('firebase-functions/v2/https');
 const logger = require('firebase-functions/logger');
+const operational = require('./operational-actions');
 
 admin.initializeApp();
 
@@ -103,11 +104,9 @@ function normalizePriority(value) {
 
 function normalizeCompanyStatus(row, hasOpportunity) {
   const raw = text(row['Outreach Status']) + ' ' + text(row['Strategic Track']);
-  if (/strategic\s+hold/i.test(raw)) return 'Strategic Hold';
-  if (/do\s*not\s*contact|\bdnc\b/i.test(raw) || /^yes$/i.test(text(row['Do Not Contact']))) return 'Do Not Contact';
-  if (/nurture/i.test(raw)) return 'Nurture';
+  if (operational.suppression(row)) return operational.suppression(row);
   if (hasOpportunity || /active\s+opportunity/i.test(raw)) return 'Active Opportunity';
-  if (/buyer\s+(conversation|replied)|reply/i.test(raw)) return 'Buyer Conversation';
+  if (/buyer\s+(conversation|replied)|reply\s+received/i.test(raw)) return 'Buyer Conversation';
   if (/not\s+contacted|research|check\s+live\s+crm/i.test(raw)) return 'Research';
   if (/outreach|follow|monthly|sent|draft|ready|current/i.test(raw)) return 'Outreach In Progress';
   return text(row['Outreach Status']) || 'Research';
@@ -115,11 +114,9 @@ function normalizeCompanyStatus(row, hasOpportunity) {
 
 function normalizePipelineStage(row, hasOpportunity) {
   const raw = text(row['Outreach Status']) + ' ' + text(row['Strategic Track']);
-  if (/strategic\s+hold/i.test(raw)) return 'Strategic Hold';
-  if (/do\s*not\s*contact|\bdnc\b/i.test(raw) || /^yes$/i.test(text(row['Do Not Contact']))) return 'Do Not Contact';
-  if (/nurture/i.test(raw)) return 'Nurture';
+  if (operational.suppression(row)) return operational.suppression(row);
   if (hasOpportunity || /active\s+opportunity/i.test(raw)) return 'Active Opportunity';
-  if (/buyer\s+(conversation|replied)|reply/i.test(raw)) return 'Buyer Conversation';
+  if (/buyer\s+(conversation|replied)|reply\s+received/i.test(raw)) return 'Buyer Conversation';
   if (/day\s*20|\bD20\b/i.test(raw)) return 'D20';
   if (/day\s*10|\bD10\b/i.test(raw)) return 'D10';
   if (/day\s*4|follow-up\s*1|\bD4\b/i.test(raw)) return 'D4';
@@ -130,11 +127,11 @@ function normalizePipelineStage(row, hasOpportunity) {
 
 function normalizeActionType(value) {
   const raw = text(value);
-  if (/initial/i.test(raw)) return 'INITIAL';
   if (/day\s*4|follow-up\s*1|\bD4\b/i.test(raw)) return 'D4';
   if (/day\s*10|follow-up\s*2|\bD10\b/i.test(raw)) return 'D10';
   if (/day\s*20|final|\bD20\b/i.test(raw)) return 'D20';
   if (/monthly|re-engagement/i.test(raw)) return 'MONTHLY';
+  if (/initial/i.test(raw)) return 'INITIAL';
   if (/research|qualification/i.test(raw)) return 'RESEARCH';
   return raw || 'ACTION';
 }
@@ -152,11 +149,6 @@ function normalizeActivityType(value) {
   if (raw.indexOf('nurture') > -1) return 'NURTURE';
   if (raw.indexOf('status') > -1) return 'STATUS_CHANGE';
   return text(value) || 'STATUS_CHANGE';
-}
-
-function isOpenExecution(value) {
-  const raw = text(value);
-  return !/completed|superseded|cancelled|closed|stopped/i.test(raw);
 }
 
 function intelligenceItems(row) {
@@ -202,7 +194,7 @@ function buildSnapshot(source) {
   const opportunityByLead = {};
   opportunityRows.forEach(function (row) {
     const leadId = text(row['Lead ID']);
-    if (leadId) (opportunityByLead[leadId] = opportunityByLead[leadId] || []).push(row);
+    if (leadId && operational.activeOpportunity(row)) (opportunityByLead[leadId] = opportunityByLead[leadId] || []).push(row);
   });
   const contactsByLead = {};
   contactsRows.forEach(function (row) {
@@ -244,7 +236,7 @@ function buildSnapshot(source) {
     };
   });
 
-  const actions = actionsRows.map(function (row) {
+  const outreachCalendar = actionsRows.map(function (row) {
     const leadId = text(row['Lead ID']);
     const companyOpp = opportunityByLead[leadId] || [];
     const companyPriority = companiesRows.find(function (company) { return text(company['Lead ID']) === leadId; });
@@ -259,7 +251,7 @@ function buildSnapshot(source) {
       priority: normalizePriority(companyPriority && companyPriority['Current Priority']),
       founderReview: /founder|human approval|review required/i.test(approval),
       draftStatus: '',
-      status: isOpenExecution(row['Execution Status']) ? 'OPEN' : 'CLOSED',
+      status: operational.calendarState(row['Execution Status']),
       note: text(row.Notes) || text(row['Reason / Learning Gate']),
       approvalStatus: approval,
       executionStatus: text(row['Execution Status'])
@@ -300,7 +292,8 @@ function buildSnapshot(source) {
       company: text(row.Company),
       country: '',
       stage: text(row.Stage),
-      status: text(row.Stage) || 'Active',
+      status: text(row.Stage),
+      active: operational.activeOpportunity(row),
       buyerName: contact.name || 'Not recorded',
       buyerTitle: contact.title || 'Not recorded',
       products: splitList(row['Product / Category']),
@@ -313,7 +306,13 @@ function buildSnapshot(source) {
     };
   });
   const oppByLead = {};
-  opportunities.forEach(function (opportunity) { oppByLead[opportunity.companyId] = opportunity; });
+  opportunities.forEach(function (opportunity) {
+    if (opportunity.active && !oppByLead[opportunity.companyId]) oppByLead[opportunity.companyId] = opportunity;
+  });
+  const actions = operational.currentActions(companiesRows, opportunityRows, { dateOnly, normalizeActionType, normalizePriority });
+  actions.forEach(function (action) {
+    if (action.opportunityId) oppByLead[action.companyId] = opportunities.find(function (opportunity) { return opportunity.id === action.opportunityId; });
+  });
 
   const drafts = draftRows.map(function (row) {
     const leadId = text(row['Lead ID']);
@@ -345,7 +344,8 @@ function buildSnapshot(source) {
     const hasOpportunity = !!oppByLead[leadId];
     const status = normalizeCompanyStatus(row, hasOpportunity);
     const companyContacts = contactsByLead[leadId] || [];
-    const actionsForCompany = actions.filter(function (action) { return action.companyId === leadId; });
+    const actionsForCompany = outreachCalendar.filter(function (action) { return action.companyId === leadId; });
+    const currentAction = actions.find(function (action) { return action.companyId === leadId; });
     const nextActionLabel = text(row['Next Action']);
     return {
       id: leadId,
@@ -358,13 +358,13 @@ function buildSnapshot(source) {
       priorityLabel: text(row['Current Priority']),
       status: status,
       pipelineStage: normalizePipelineStage(row, hasOpportunity),
-      stage: actionsForCompany[0] ? actionsForCompany[0].type : normalizePipelineStage(row, hasOpportunity),
+      stage: currentAction ? currentAction.type : normalizePipelineStage(row, hasOpportunity),
       commercialFit: text(row['Commercial Feasibility']) || '—',
       opportunityId: hasOpportunity ? oppByLead[leadId].id : '',
       about: [text(row['Business Type']), text(row.Category), text(row['Relevant Products'])].filter(Boolean).join(' · '),
       categories: splitList(row.Category),
       tags: [text(row['Strategic Track']), text(row['Qualification Segment'])].filter(Boolean),
-      nextAction: { label: nextActionLabel, date: dateOnly(row['Next Action Date']), type: actionsForCompany[0] ? actionsForCompany[0].type : '' },
+      nextAction: hasOpportunity ? oppByLead[leadId].nextAction : { label: nextActionLabel, date: dateOnly(row['Next Action Date']), type: currentAction ? currentAction.type : '' },
       intelligence: buyerByLead[leadId] || [],
       productOpportunity: {
         angle: text(row['Current Opportunity']) || text(row['Personalized Hook']),
@@ -374,13 +374,22 @@ function buildSnapshot(source) {
       },
       outreach: {
         sequence: hasOpportunity ? 'OPPORTUNITY' : 'COLD',
-        superseded: hasOpportunity || /hold|nurture|do\s*not\s*contact/i.test(status),
+        superseded: hasOpportunity || status === 'Buyer Conversation' || !!operational.suppression(row),
         note: text(row['DNC Reason']) || text(row['SHALVADZE Owner Notes']),
-        steps: actionsForCompany.map(function (action) { return { key: action.type, label: action.title, state: action.status === 'OPEN' ? 'CURRENT' : 'COMPLETED', date: action.due, evidence: action.executionStatus || action.approvalStatus }; })
+        steps: actionsForCompany.map(function (action) { return { key: action.type, label: action.title, state: action.status, date: action.due, evidence: action.executionStatus || action.approvalStatus }; })
       },
       notes: text(row['SHALVADZE Owner Notes']),
       contactCount: companyContacts.length
     };
+  });
+  // Ready copy must belong to the authoritative scheduled action, not merely
+  // contain the word "ready" on a future or protected cold-cadence message.
+  drafts.forEach(function (draft) {
+    const action = actions.find(function (item) { return item.companyId === draft.companyId; });
+    if (draft.status === 'CURRENT_READY' && (!action || action.context !== 'COMPANY' ||
+        normalizeActionType(draft.stage) !== action.type || draft.operationalNextDate !== action.due)) {
+      draft.status = 'PREPARED_FUTURE';
+    }
   });
   const companyCountry = {};
   companies.forEach(function (company) { companyCountry[company.id] = company.country; });
@@ -405,13 +414,14 @@ function buildSnapshot(source) {
       brand: 'SHALVADZE', owner: 'Taha', ownerRole: 'Founder',
       sourceType: 'AUTHENTICATED_LIVE_SOURCES',
       sourceLabel: 'Private CRM workbook + Master Commercial Calendar',
-      schemaVersion: '2.0.0', retrievedAt: new Date().toISOString(),
+      schemaVersion: '3.0.0', retrievedAt: new Date().toISOString(),
       focusMarkets: ['Australia', 'New Zealand'], readOnly: true,
       cadence: ['Initial', 'D4', 'D10', 'D20', 'Monthly (15th)']
     },
     companies: companies,
     contacts: contacts,
     actions: actions,
+    outreachCalendar: outreachCalendar,
     activities: activities,
     buyerIntelligence: buyerIntelligence,
     opportunities: opportunities,

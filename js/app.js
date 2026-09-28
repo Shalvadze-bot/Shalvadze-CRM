@@ -221,6 +221,7 @@ function deepCopy(o){
 function isArr(v){ return Object.prototype.toString.call(v)==='[object Array]'; }
 function isValidSnapshot(raw){
   return !!(raw && typeof raw==='object' && raw.meta && raw.meta.sourceType==='AUTHENTICATED_LIVE_SOURCES' &&
+    raw.meta.schemaVersion==='3.0.0' && isArr(raw.outreachCalendar) &&
     isArr(raw.companies) && isArr(raw.contacts) && isArr(raw.actions) && isArr(raw.activities) &&
     isArr(raw.buyerIntelligence) && isArr(raw.opportunities) && isArr(raw.drafts) && isArr(raw.marketingCalendar));
 }
@@ -361,7 +362,7 @@ var CRM = {
     });
   },
   getActiveActions:function(){ return Rules.activeActions(this.getActions(), this.getCompanies()); },
-  getHiddenFutureStages:function(){ return Rules.hiddenFutureCount(this.getActions(), this.getCompanies(), this.getDrafts()); },
+  getHiddenFutureStages:function(){ return Rules.hiddenFutureCount((this._snapshot||{}).outreachCalendar, this.getActions()); },
 
   getPipelineSummary:function(){
     var ps=(this._snapshot && this._snapshot.pipelineSummary) || {};
@@ -380,7 +381,7 @@ var CRM = {
     var replies=companies.filter(function(c){ return c.status==='Buyer Conversation'||c.status==='Active Opportunity'; });
     return {
       actionsToday:today.length, overdue:overdue.length, tomorrow:tomorrow.length, openActions:acts.length,
-      activeOpportunities:this.getOpportunities().length, draftsReady:ready.length, buyerReplies:replies.length,
+      activeOpportunities:this.getOpportunities().filter(function(o){ return o.active; }).length, draftsReady:ready.length, buyerReplies:replies.length,
       founderReview:acts.filter(function(a){ return a.founderReview; }).length,
       companies:companies.length, contacts:this.getContacts().length, hiddenStages:this.getHiddenFutureStages(),
       activities:this.getActivities().length, marketing:this.getMarketingCalendar().length
@@ -395,54 +396,37 @@ var SUPPRESSING_STATUSES=['Nurture','Do Not Contact','Strategic Hold','Stop','Cl
 
 var Rules = {
   isSuppressed:function(c){ return !c || SUPPRESSING_STATUSES.indexOf(c.status)>-1; },
-  isOpportunityLed:function(c){ return !!(c && (c.opportunityId || c.status==='Active Opportunity')); },
+  isOpportunityLed:function(c){ return !!(c && (c.opportunityId || c.status==='Active Opportunity' || c.status==='Buyer Conversation')); },
   cadenceActive:function(c){
     if(!c || Rules.isSuppressed(c) || Rules.isOpportunityLed(c)) return false;
     return !(c.outreach && c.outreach.paused);
   },
   activeActions:function(actions, companies){
     var map={}; (companies||[]).forEach(function(c){ map[c.id]=c; });
-    var byCo={};
-    (actions||[]).filter(function(a){ return a.status==='OPEN'; }).forEach(function(a){
-      (byCo[a.companyId]=byCo[a.companyId]||[]).push(a);
-    });
-    var out=[];
-    Object.keys(byCo).forEach(function(cid){
-      var c=map[cid]; if(!c) return;
-      if(Rules.isSuppressed(c)) return;
-      var list=byCo[cid].slice().sort(function(a,b){
-        return (DateUtil.parseDateOnly(a.due)||DateUtil.today()) - (DateUtil.parseDateOnly(b.due)||DateUtil.today());
-      });
-      if(Rules.isOpportunityLed(c)){
-        list.filter(function(a){ return a.context!=='COLD'; }).slice(0,1).forEach(function(a){ out.push(a); });
-      }else{
-        var cold=list.filter(function(a){ return a.context==='COLD'; });
-        var other=list.filter(function(a){ return a.context!=='COLD'; });
-        if(cold.length) out.push(cold[0]);
-        if(other.length) out.push(other[0]);
-      }
+    var seen={};
+    var out=(actions||[]).filter(function(a){
+      var c=map[a.companyId];
+      if(!a.authoritative || !a.title || !a.due || isNaN(DateUtil.dayDiff(a.due)) ||
+        Rules.isSuppressed(c) || seen[a.companyId]) return false;
+      if(Rules.isOpportunityLed(c) && a.context!=='OPPORTUNITY' && a.context!=='BUYER') return false;
+      seen[a.companyId]=true;
+      return true;
     });
     return out.sort(function(a,b){
       return (DateUtil.parseDateOnly(a.due)||DateUtil.today()) - (DateUtil.parseDateOnly(b.due)||DateUtil.today());
     });
   },
-  hiddenFutureCount:function(actions, companies, drafts){
-    var map={}; (companies||[]).forEach(function(c){ map[c.id]=c; });
-    var active={};
-    Rules.activeActions(actions,companies).forEach(function(a){ active[a.id]=true; });
-    var n=0;
-    (actions||[]).forEach(function(a){
-      if(a.status==='OPEN' && !active[a.id]){
-        var c=map[a.companyId];
-        if(c && !Rules.isSuppressed(c)) n++;
-      }
-    });
-    (drafts||[]).forEach(function(d){ if(d.status==='PREPARED_FUTURE') n++; });
-    return n;
+  hiddenFutureCount:function(calendar, actions){
+    return (calendar||[]).filter(function(row){
+      return (row.status==='PLANNED' || row.status==='') && DateUtil.dayDiff(row.due)>0 && !(actions||[]).some(function(a){
+        return a.companyId===row.companyId && a.type===row.type && a.due===row.due;
+      });
+    }).length;
   },
   groupActions:function(actions){
     var g={overdue:[],today:[],tomorrow:[],week:[],later:[]};
     (actions||[]).forEach(function(a){
+      if(!a.authoritative || !a.due) return;
       var n=DateUtil.dayDiff(a.due);
       if(isNaN(n)) g.later.push(a);
       else if(n<0) g.overdue.push(a);
@@ -575,9 +559,9 @@ function actionCard(a, opts){
     '<div class="acard-main">'+
       '<div class="acard-top"><h3>'+esc(c.name)+'</h3><span class="prio '+prioClass(a.priority)+'">'+esc(a.priority||'—')+'</span></div>'+
       '<div class="acard-meta">'+countryTag(c.country)+' · '+esc(c.buyerType)+'</div>'+
-      '<div class="acard-title">'+esc(t.label)+
+      '<div class="acard-title">'+esc(a.title||t.label)+
         (a.founderReview? chip('Founder Review','gold',{xs:true,icon:'eye'}) : '')+
-        (opp? chip('Opportunity','blue',{xs:true,icon:'diamond'}) : chip('Cold','ghost',{xs:true}))+
+        (opp? chip('Opportunity','blue',{xs:true,icon:'diamond'}) : '')+
       '</div>'+
       '<div class="acard-foot">'+
         '<span class="due '+d.cls+'">'+icon(d.ico)+esc(d.label)+'</span>'+
@@ -831,7 +815,7 @@ function openCadenceSheet(){
     ['Active Opportunity','Removed from cold cadence — opportunity actions only.']];
   var cadence=['Initial outreach','D4 — first follow-up','D10 — value refresh','D20 — final touch','Monthly re-engagement on the 15th'];
   var html=
-    '<div class="banner info">'+icon('info')+'<p>The Action Center only ever shows the <b>current operational next action</b> for each company. Future D4 / D10 / D20 stages stay hidden until they become current — even when draft copy already exists.</p></div>'+
+    '<div class="banner info">'+icon('info')+'<p>The Action Center uses <b>Next Action + Next Action Date</b> from active opportunities, otherwise company records. Undated instructions stay on those records. Calendar rows and draft copy never create tasks.</p></div>'+
     '<div class="micro" style="margin:4px 2px 9px">Cold outreach cadence</div>'+
     '<div class="card pad" style="margin-bottom:12px">'+
       cadence.map(function(s,i){ return '<div class="kv"><span class="k">'+(i+1)+'</span><span class="v" style="text-align:left">'+esc(s)+'</span></div>'; }).join('')+
@@ -840,7 +824,7 @@ function openCadenceSheet(){
     '<div class="card pad" style="margin-bottom:12px">'+
       rules.map(function(r){ return '<div class="opp-row"><div class="or-l">'+esc(r[0])+'</div><div class="or-v">'+esc(r[1])+'</div></div>'; }).join('')+
     '</div>'+
-    '<div class="note">'+icon('shield')+'<span>Gmail is the communication evidence layer. Only actually-sent messages are shown as completed in the cadence track.</span></div>';
+    '<div class="note">'+icon('shield')+'<span>Gmail is the communication evidence layer. Calendar completion states follow the recorded Execution Status; cancelled, superseded and planned rows remain distinct.</span></div>';
   Sheets.open(html, {title:'Cadence &amp; CRM Rules'});
 }
 
@@ -1065,11 +1049,11 @@ var Pages = {
       return '<a class="kv" href="#/company/'+esc(c.id||'')+'" style="display:flex;align-items:center;gap:10px">'+
         '<span class="k" style="flex:0 0 62px;font-weight:700;color:'+(n<=1?'var(--gold)':'var(--muted)')+'">'+esc(n===1?'Tomorrow':DateUtil.short(a.due))+'</span>'+
         '<span class="v" style="text-align:left;flex:1;min-width:0"><span style="display:block;font-weight:600;font-size:12.5px">'+esc(c.name||'')+'</span>'+
-        '<span style="display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:2px">'+esc(t.label)+(a.founderReview?' · Founder review':'')+'</span></span>'+
+        '<span style="display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:2px">'+esc(a.title||t.label)+(a.founderReview?' · Founder review':'')+'</span></span>'+
         '<span style="color:var(--muted-2)">'+icon('chevR')+'</span></a>';
     }).join('') : '<p class="hint" style="padding:8px 0">No upcoming actions scheduled.</p>')+'</div>';
 
-    h+='<div class="note" style="margin-top:16px">'+icon('info')+'<span>'+safeNum(st.hiddenStages)+' future cadence stages are hidden until they become current. Read-only view of the Google Sheets CRM.</span></div>';
+    h+='<div class="note" style="margin-top:16px">'+icon('info')+'<span>'+safeNum(st.hiddenStages)+' future calendar rows are planning only, not current tasks. Read-only view of the Google Sheets CRM.</span></div>';
     h+='<div class="footmark">SHALVADZE · <b>Founder CRM</b> · read-only live viewer</div>';
     return h;
   },
@@ -1077,7 +1061,7 @@ var Pages = {
   actions:function(){
     var st=CRM.getStats();
     return '<div class="rule-strip" data-act="open-cadence" role="button" tabindex="0">'+icon('info')+
-      '<p><b>One current action per company.</b> Future D4 / D10 / D20 stages stay hidden until they become current — '+safeNum(st.hiddenStages)+' suppressed. Tap for the rules.</p></div>'+
+      '<p><b>One current action per company.</b> Tasks require an authoritative Next Action and Next Action Date. '+safeNum(st.hiddenStages)+' future calendar rows remain planning only. Tap for the rules.</p></div>'+
       '<div id="actionFilters">'+Pages.actionFilters()+'</div>'+
       '<div id="actionsWrap">'+Pages.actionsBody()+'</div>';
   },
@@ -1106,7 +1090,7 @@ var Pages = {
     else if(f==='founder') acts=acts.filter(function(a){ return a.founderReview; });
     else if(['INITIAL','D4','D10','D20','MONTHLY'].indexOf(f)>-1) acts=acts.filter(function(a){ return a.type===f; });
 
-    if(!acts.length) return emptyState('No actions in this view','Nothing matches this filter right now. The cadence is either complete or suppressed for these accounts.','checkCircle');
+    if(!acts.length) return emptyState('No actions in this view','No authoritative scheduled next action matches this filter. Undated instructions remain on company and opportunity records.','checkCircle');
 
     var g=Rules.groupActions(acts);
     var sections=[['overdue','Overdue','g-over'],['today','Today','g-today'],['tomorrow','Tomorrow','g-tomorrow'],['week','This Week','g-week'],['later','Later','g-later']];
@@ -1116,7 +1100,7 @@ var Pages = {
       h+='<div class="group"><div class="grouphead '+s[2]+'"><span class="gl">'+s[1]+'</span><span class="gc">'+list.length+'</span><span class="gr"></span></div>'+
         list.map(function(a){ return actionCard(a,{note:f!=='all'}); }).join('')+'</div>';
     });
-    h+='<div class="note">'+icon('shield')+'<span>Only actually-sent communication appears as completed. Drafts that exist for future stages are shown in Email Drafts, never as due actions.</span></div>';
+    h+='<div class="note">'+icon('shield')+'<span>Completed history remains on company records. Future draft copy and calendar dates never create due actions.</span></div>';
     return h;
   },
 
@@ -1449,7 +1433,7 @@ var Pages = {
     var o=CRM.getOpportunityById(id);
     if(!o) return emptyState('Opportunity not found','This record is not in the current snapshot.','diamond');
     var c=CRM.getCompanyById(o.companyId)||{};
-    var acts=CRM.getActions().filter(function(a){ return a.companyId===o.companyId && a.status==='OPEN'; });
+    var acts=CRM.getActiveActions().filter(function(a){ return a.opportunityId===o.id; });
     var evs=CRM.getActivitiesByCompany(o.companyId).slice(0,8);
     var lc=o.latestCommunication||{};
     var h='<div class="hero"><div class="hero-id">'+esc(c.crmId||'')+' · '+esc(o.country)+'</div>'+

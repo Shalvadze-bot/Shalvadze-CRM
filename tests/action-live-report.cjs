@@ -21,7 +21,12 @@ actions.forEach(action => {
   const row = rows.find(r => r['Lead ID'] === action.companyId && (!action.opportunityId || r['Opportunity ID'] === action.opportunityId));
   assert.equal(action.title, row['Next Action'].trim());
   assert.equal(action.due, backend().dateOnly(row['Next Action Date']));
-  assert.equal(ui.Rules.isSuppressed(ui.CRM.getCompanyById(action.companyId)), false);
+  if (ui.Rules.isSuppressed(ui.CRM.getCompanyById(action.companyId))) {
+    assert.equal(action.category, 'INTERNAL');
+    assert.match(row['Outreach Status'], /^(HOLD|NURTURE|STRATEGIC HOLD)/i);
+    assert.match(row['Next Action'], /research|review|re.?activation/i);
+    assert.ok(!['INITIAL', 'D4', 'D10', 'D20', 'MONTHLY'].includes(action.type));
+  }
 });
 assert.equal(snapshot.outreachCalendar.length, source.actions.length);
 source.actions.forEach(row => {

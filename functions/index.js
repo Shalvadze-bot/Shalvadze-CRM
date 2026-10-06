@@ -10,7 +10,6 @@ const operational = require('./operational-actions');
 admin.initializeApp();
 
 const CRM_SPREADSHEET_ID = process.env.SHALVADZE_CRM_SPREADSHEET_ID || '120g7CHP5lPDUx0QwQOZXd572y0sM8rP52-qWxTsv6og';
-const CALENDAR_FILE_ID = process.env.SHALVADZE_MARKETING_CALENDAR_FILE_ID || '12QkVZL7LKFUhf_z4NBd3W2hlyL2-tqAA';
 const AUTHORIZED_EMAIL = String(process.env.SHALVADZE_AUTHORIZED_EMAIL || 'taha@shalvadze.com').trim().toLowerCase();
 const DEFAULT_ORIGINS = [
   'https://shalvadze-bot.github.io',
@@ -86,14 +85,6 @@ function findHeaderRows(rows, requiredHeader) {
   return [];
 }
 
-function readCalendarRows(buffer) {
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: true });
-  const sheet = workbook.Sheets['MASTER COMMERCIAL CALENDAR'];
-  if (!sheet) throw new Error('MASTER COMMERCIAL CALENDAR sheet is missing.');
-  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
-  return rowsToObjects(findHeaderRows(matrix, 'Record ID'));
-}
-
 function normalizePriority(value) {
   const raw = text(value);
   if (/^P1\b/i.test(raw)) return 'High';
@@ -106,7 +97,7 @@ function normalizeCompanyStatus(row, hasOpportunity) {
   const raw = text(row['Outreach Status']) + ' ' + text(row['Strategic Track']);
   if (operational.suppression(row)) return operational.suppression(row);
   if (hasOpportunity || /active\s+opportunity/i.test(raw)) return 'Active Opportunity';
-  if (/buyer\s+(conversation|replied)|reply\s+received/i.test(raw)) return 'Buyer Conversation';
+  if (operational.buyerConversation(row)) return 'Buyer Conversation';
   if (/not\s+contacted|research|check\s+live\s+crm/i.test(raw)) return 'Research';
   if (/outreach|follow|monthly|sent|draft|ready|current/i.test(raw)) return 'Outreach In Progress';
   return text(row['Outreach Status']) || 'Research';
@@ -116,7 +107,8 @@ function normalizePipelineStage(row, hasOpportunity) {
   const raw = text(row['Outreach Status']) + ' ' + text(row['Strategic Track']);
   if (operational.suppression(row)) return operational.suppression(row);
   if (hasOpportunity || /active\s+opportunity/i.test(raw)) return 'Active Opportunity';
-  if (/buyer\s+(conversation|replied)|reply\s+received/i.test(raw)) return 'Buyer Conversation';
+  if (operational.buyerConversation(row)) return 'Buyer Conversation';
+  if (/monthly|re-engagement/i.test(raw)) return 'Monthly';
   if (/day\s*20|\bD20\b/i.test(raw)) return 'D20';
   if (/day\s*10|\bD10\b/i.test(raw)) return 'D10';
   if (/day\s*4|follow-up\s*1|\bD4\b/i.test(raw)) return 'D4';
@@ -136,19 +128,33 @@ function normalizeActionType(value) {
   return raw || 'ACTION';
 }
 
-function normalizeActivityType(value) {
+function normalizeActivityType(value, row = {}) {
   const raw = text(value).toLowerCase();
-  if (raw.indexOf('initial') > -1 && raw.indexOf('outreach') > -1) return 'OUTREACH_SENT';
-  if (raw.indexOf('follow') > -1 || raw.indexOf('day 4') > -1 || raw.indexOf('day 10') > -1 || raw.indexOf('day 20') > -1) return 'FOLLOWUP_SENT';
-  if (raw.indexOf('reply') > -1) return 'BUYER_REPLY';
-  if (raw.indexOf('draft') > -1) return 'DRAFT_PREPARED';
-  if (raw.indexOf('opportunity') > -1) return 'OPPORTUNITY_CREATED';
-  if (raw.indexOf('contact') > -1) return 'CONTACT_UPDATED';
-  if (raw.indexOf('research') > -1) return 'RESEARCH_UPDATED';
-  if (raw.indexOf('strategic') > -1 || raw.indexOf('hold') > -1) return 'STRATEGIC_HOLD';
-  if (raw.indexOf('nurture') > -1) return 'NURTURE';
-  if (raw.indexOf('status') > -1) return 'STATUS_CHANGE';
+  const context = raw + ' ' + text(row.Outcome) + ' ' + text(row.Direction);
+  if (/auto[ -]?reply|automatic reply|out.of.office/.test(context.toLowerCase())) return 'AUTO_REPLY';
+  if (/bounce|undeliver|delivery fail/.test(context.toLowerCase())) return 'DELIVERY_FAILURE';
+  if (/draft/.test(raw) || /draft/.test(text(row.Direction).toLowerCase())) return 'DRAFT_PREPARED';
+  const outbound = /^(outbound|sent)/i.test(text(row.Direction)) && /gmail|email/i.test(text(row.Channel));
+  if (outbound && /initial.*outreach/.test(raw)) return 'OUTREACH_SENT';
+  if (outbound && /follow|day\s*(4|10|20)|final attempt/.test(raw)) return 'FOLLOWUP_SENT';
+  if (/reply/.test(raw) && /^(inbound|received)/i.test(text(row.Direction))) return 'BUYER_REPLY';
+  if (/opportunity/.test(raw)) return 'OPPORTUNITY_UPDATED';
+  if (/research/.test(raw)) return 'RESEARCH_UPDATED';
+  if (/contact/.test(raw)) return 'CONTACT_UPDATED';
   return text(value) || 'STATUS_CHANGE';
+}
+function activityTimestamp(row) {
+  const raw = text(row['Activity Date']);
+  const communication = /^(outbound|sent|inbound|received)/i.test(text(row.Direction)) && !/draft/i.test(text(row.Direction)+' '+text(row['Activity Type'])) && /gmail|email/i.test(text(row.Channel));
+  const detail = communication ? [row['Evidence / Source'], row['Subject / Description']].map(text).join(' ') : '';
+  const iso = detail.match(/(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{2}:\d{2}|Z))/);
+  const hkt = detail.match(/(20\d{2}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)\s*HKT/i);
+  const full = raw.match(/^20\d{2}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/);
+  let at = iso ? Date.parse(iso[1]) : hkt ? Date.parse(hkt[1]+'T'+hkt[2]+(hkt[2].length===5?':00':'')+'+08:00') : full ? Date.parse(raw.replace(' HKT','+08:00').replace(' ','T')) : NaN;
+  const date = dateOnly(row['Activity Date']);
+  // A date-only record remains date-only; midnight is sorting metadata, not a verified send time.
+  if (!Number.isFinite(at)) at = date ? Date.parse(date+'T00:00:00+08:00') : 0;
+  return {at, precision: iso || hkt || full ? 'TIMESTAMP' : 'DATE_ONLY'};
 }
 
 function intelligenceItems(row) {
@@ -178,9 +184,19 @@ function intelligenceItems(row) {
   return fields.map(function (field) {
     const value = text(row[field[0]]);
     if (!value) return null;
-    const type = /^verified\b/i.test(value) ? 'VERIFIED_FACT' : (/^unverified\b/i.test(value) ? 'OBSERVATION' : 'UNKNOWN');
+    const type = /^buyer claim/i.test(value) ? 'BUYER_CLAIM' : /^supplier claim/i.test(value) ? 'SUPPLIER_CLAIM' : /^document evidence/i.test(value) ? 'DOCUMENT_EVIDENCE' : /^transaction|^sample evidence/i.test(value) ? 'TRANSACTION_SAMPLE_EVIDENCE' : /^verified\b/i.test(value) ? 'VERIFIED_FACT' : /^shalvadze assessment|^unverified\b/i.test(value) ? 'ASSESSMENT' : 'UNKNOWN';
     return { type: type, title: field[1], detail: value, source: text(row['Intelligence Source']), date: dateOnly(row['Date Learned']) };
   }).filter(Boolean);
+}
+
+function linkedSendDate(draft, activities) {
+  const note = text(draft['Intelligence / Control Note']);
+  const id = (note.match(/message_id[=:]\s*([a-f0-9]{16})/i)||[])[1];
+  if (!id) return ''; // Never substitute a later unrelated company activity.
+  const row = activities.find(row => text(row['Lead ID'])===text(draft['Lead ID']) &&
+    /^(OUTREACH_SENT|FOLLOWUP_SENT)$/.test(normalizeActivityType(row['Activity Type'],row)) &&
+    [row['Subject / Description'],row['Evidence / Source']].map(text).join(' ').includes(id));
+  return row ? dateOnly(row['Activity Date']) : '';
 }
 
 function buildSnapshot(source) {
@@ -263,9 +279,10 @@ function buildSnapshot(source) {
     return {
       id: text(row['Activity ID']),
       companyId: text(row['Lead ID']),
-      type: normalizeActivityType(row['Activity Type']),
+      type: normalizeActivityType(row['Activity Type'], row),
       title: text(row['Activity Type']),
-      at: activityDate ? Date.parse(activityDate + 'T12:00:00Z') : 0,
+      at: activityTimestamp(row).at,
+      timePrecision: activityTimestamp(row).precision,
       description: text(row['Subject / Description']) || text(row.Outcome),
       agent: text(row['Recorded By']) || 'CRM',
       channel: text(row.Channel),
@@ -276,15 +293,17 @@ function buildSnapshot(source) {
     };
   });
 
-  const latestActivity = {};
-  activities.forEach(function (item) {
+  const latestActivity = {}, latestCommunication = {};
+  activities.forEach(function (item, index) {
     if (!latestActivity[item.companyId] || item.at > latestActivity[item.companyId].at) latestActivity[item.companyId] = item;
+    const row = activitiesRows[index];
+    if (/^(outbound|sent|inbound|received)/i.test(text(row.Direction)) && !/draft/i.test(text(row.Direction)+' '+text(row['Activity Type'])) && /gmail|email/i.test(text(row.Channel)) && (!latestCommunication[item.companyId] || item.at > latestCommunication[item.companyId].at)) latestCommunication[item.companyId] = item;
   });
 
   const opportunities = opportunityRows.map(function (row) {
     const leadId = text(row['Lead ID']);
     const contact = contacts.find(function (item) { return item.id === text(row['Contact ID']); }) || {};
-    const latest = latestActivity[leadId];
+    const latest = latestCommunication[leadId];
     const notes = [text(row['Commercial Risk']), text(row['Lost / Deferred Reason']), text(row['Working-Capital Requirement'])].filter(Boolean);
     return {
       id: text(row['Opportunity ID']),
@@ -331,7 +350,7 @@ function buildSnapshot(source) {
       preparedAt: dateOnly(row['Recommended Date']),
       preparedBy: '',
       threadRef: '',
-      sentAt: status === 'SENT_VERIFIED' && latestActivity[leadId] ? dateOnly(new Date(latestActivity[leadId].at)) : '',
+      sentAt: status === 'SENT_VERIFIED' ? linkedSendDate(row, activitiesRows) : '',
       classification: text(row['Message Classification']),
       messageStatus: messageStatus,
       currentActiveStage: text(row['Current Active Stage']),
@@ -396,24 +415,12 @@ function buildSnapshot(source) {
   contacts.forEach(function (contact) { contact.country = companyCountry[contact.companyId] || ''; });
   opportunities.forEach(function (opportunity) { opportunity.country = companyCountry[opportunity.companyId] || ''; });
 
-  const marketingCalendar = source.marketingCalendar.map(function (row) {
-    return {
-      id: text(row['Record ID']),
-      date: dateOnly(row['Planning / Anchor Date']),
-      title: text(row['Market Opportunity']),
-      channel: text(row['Record Type']),
-      campaign: text(row['Market Trigger']),
-      priority: normalizePriority(row.Priority),
-      status: text(row['Confidence / Status']),
-      note: text(row['Recommended Commercial Action'])
-    };
-  });
 
   return {
     meta: {
       brand: 'SHALVADZE', owner: 'Taha', ownerRole: 'Founder',
       sourceType: 'AUTHENTICATED_LIVE_SOURCES',
-      sourceLabel: 'Private CRM workbook + Master Commercial Calendar',
+      sourceLabel: 'Private SHALVADZE CRM workbook',
       schemaVersion: '3.0.0', retrievedAt: new Date().toISOString(),
       focusMarkets: ['Australia', 'New Zealand'], readOnly: true,
       cadence: ['Initial', 'D4', 'D10', 'D20', 'Monthly (15th)']
@@ -421,12 +428,13 @@ function buildSnapshot(source) {
     companies: companies,
     contacts: contacts,
     actions: actions,
+    unscheduledActions: operational.unscheduledActions(companiesRows, opportunityRows),
     outreachCalendar: outreachCalendar,
     activities: activities,
     buyerIntelligence: buyerIntelligence,
     opportunities: opportunities,
     drafts: drafts,
-    marketingCalendar: marketingCalendar,
+    marketingCalendar: [], // Legacy payload compatibility only; no file read or dependency.
     pipelineSummary: {
       order: ['Research', 'Approved for Outreach', 'Draft Ready', 'Initial Sent', 'D4', 'D10', 'D20', 'Monthly', 'Buyer Conversation', 'Active Opportunity', 'Nurture', 'Strategic Hold', 'Do Not Contact', 'Closed'],
       note: 'Counts are derived from live company records.'
@@ -435,10 +443,9 @@ function buildSnapshot(source) {
 }
 
 async function readSources() {
-  const auth = new google.auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly', 'https://www.googleapis.com/auth/drive.readonly'] });
+  const auth = new google.auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'] });
   const client = await auth.getClient();
   const sheets = google.sheets({ version: 'v4', auth: client });
-  const drive = google.drive({ version: 'v3', auth: client });
   const ranges = [
     "'COMPANY INTELLIGENCE'!A4:AI",
     "'CONTACTS'!A4:V",
@@ -450,7 +457,6 @@ async function readSources() {
   ];
   const sheetData = await sheets.spreadsheets.values.batchGet({ spreadsheetId: CRM_SPREADSHEET_ID, ranges: ranges, valueRenderOption: 'FORMATTED_VALUE' });
   const values = (sheetData.data.valueRanges || []).map(function (item) { return item.values || []; });
-  const calendarFile = await drive.files.get({ fileId: CALENDAR_FILE_ID, alt: 'media' }, { responseType: 'arraybuffer' });
   return {
     companies: rowsToObjects(values[0]),
     contacts: rowsToObjects(values[1]),
@@ -459,7 +465,7 @@ async function readSources() {
     buyerIntelligence: rowsToObjects(values[4]),
     opportunities: rowsToObjects(values[5]),
     drafts: rowsToObjects(values[6]),
-    marketingCalendar: readCalendarRows(Buffer.from(calendarFile.data))
+    marketingCalendar: []
   };
 }
 

@@ -223,7 +223,7 @@ function isValidSnapshot(raw){
   return !!(raw && typeof raw==='object' && raw.meta && raw.meta.sourceType==='AUTHENTICATED_LIVE_SOURCES' &&
     raw.meta.schemaVersion==='3.0.0' && isArr(raw.outreachCalendar) &&
     isArr(raw.companies) && isArr(raw.contacts) && isArr(raw.actions) && isArr(raw.activities) &&
-    isArr(raw.buyerIntelligence) && isArr(raw.opportunities) && isArr(raw.drafts) && isArr(raw.marketingCalendar));
+    isArr(raw.buyerIntelligence) && isArr(raw.opportunities) && isArr(raw.drafts));
 }
 
 /* ============================================================================
@@ -374,13 +374,19 @@ var CRM = {
 
   getStats:function(){
     var acts=this.getActiveActions(), companies=this.getCompanies(), drafts=this.getDrafts();
-    var overdue=acts.filter(function(a){ return DateUtil.dayDiff(a.due)<0; });
+    var overdue=acts.filter(function(a){ return (a.category||'FOLLOW_UP')==='FOLLOW_UP' && DateUtil.dayDiff(a.due)<0; });
+    var internal=acts.filter(function(a){ return a.category==='INTERNAL'||a.category==='BUYER_DEVELOPMENT'; });
     var today=acts.filter(function(a){ return DateUtil.dayDiff(a.due)===0; });
     var tomorrow=acts.filter(function(a){ return DateUtil.dayDiff(a.due)===1; });
     var ready=drafts.filter(function(d){ return d.status==='CURRENT_READY'||d.status==='APPROVED_AWAITING_SEND'; });
     var replies=companies.filter(function(c){ return c.status==='Buyer Conversation'||c.status==='Active Opportunity'; });
     return {
       actionsToday:today.length, overdue:overdue.length, tomorrow:tomorrow.length, openActions:acts.length,
+      followupsToday:today.filter(function(a){return a.category==='FOLLOW_UP';}).length,
+      upcomingFollowups:acts.filter(function(a){return a.category==='FOLLOW_UP'&&DateUtil.dayDiff(a.due)>0;}).length,
+      internalOverdue:internal.filter(function(a){return DateUtil.dayDiff(a.due)<0;}).length,
+      internalDue:internal.filter(function(a){return DateUtil.dayDiff(a.due)<=0;}).length,
+      initialOutreach:acts.filter(function(a){return a.category==='INITIAL';}).length,
       activeOpportunities:this.getOpportunities().filter(function(o){ return o.active; }).length, draftsReady:ready.length, buyerReplies:replies.length,
       founderReview:acts.filter(function(a){ return a.founderReview; }).length,
       companies:companies.length, contacts:this.getContacts().length, hiddenStages:this.getHiddenFutureStages(),
@@ -392,7 +398,7 @@ var CRM = {
 /* ============================================================================
    6. DOMAIN RULES
    ============================================================================ */
-var SUPPRESSING_STATUSES=['Nurture','Do Not Contact','Strategic Hold','Stop','Closed'];
+var SUPPRESSING_STATUSES=['Nurture','Do Not Contact','Strategic Hold','Hold','Park','Drop','Stop','Closed'];
 
 var Rules = {
   isSuppressed:function(c){ return !c || SUPPRESSING_STATUSES.indexOf(c.status)>-1; },
@@ -407,7 +413,7 @@ var Rules = {
     var out=(actions||[]).filter(function(a){
       var c=map[a.companyId];
       if(!a.authoritative || !a.title || !a.due || isNaN(DateUtil.dayDiff(a.due)) ||
-        Rules.isSuppressed(c) || seen[a.companyId]) return false;
+        (Rules.isSuppressed(c) && a.category!=='INTERNAL') || seen[a.companyId]) return false;
       if(Rules.isOpportunityLed(c) && a.context!=='OPPORTUNITY' && a.context!=='BUYER') return false;
       seen[a.companyId]=true;
       return true;
@@ -424,12 +430,12 @@ var Rules = {
     }).length;
   },
   groupActions:function(actions){
-    var g={overdue:[],today:[],tomorrow:[],week:[],later:[]};
+    var g={overdue:[],today:[],tomorrow:[],week:[],later:[],internal:[]};
     (actions||[]).forEach(function(a){
       if(!a.authoritative || !a.due) return;
       var n=DateUtil.dayDiff(a.due);
       if(isNaN(n)) g.later.push(a);
-      else if(n<0) g.overdue.push(a);
+      else if(n<0) (a.category==='INTERNAL'||a.category==='BUYER_DEVELOPMENT'||a.context==='OPPORTUNITY' ? g.internal : g.overdue).push(a);
       else if(n===0) g.today.push(a);
       else if(n===1) g.tomorrow.push(a);
       else if(n<=7) g.week.push(a);
@@ -736,7 +742,6 @@ function openMoreSheet(){
       Sheets.menuItem('#/drafts','mail','Email Drafts','Current, future sequence, superseded', st.draftsReady)+
     '</div>'+
     '<div class="menu-group"><div class="micro" style="margin:2px 2px 6px">Planning</div>'+
-      Sheets.menuItem('#/marketing','megaphone','Marketing Calendar','Campaigns, content, social and events', st.marketing)+
       Sheets.menuItem('#/pipeline','trendUp','Pipeline Summary','Stage counts across the whole book', st.companies)+
     '</div>'+
     '<div class="menu-group"><div class="micro" style="margin:2px 2px 6px">System</div>'+
@@ -786,7 +791,7 @@ function openSourceSheet(){
   var st=CRM.state, meta=CRM.getMeta();
   var rows=[['Companies',CRM.getCompanies().length],['Contacts',CRM.getContacts().length],['Actions',CRM.getActions().length],
     ['Activities',CRM.getActivities().length],['Opportunities',CRM.getOpportunities().length],['Drafts',CRM.getDrafts().length],
-    ['Marketing items',CRM.getMarketingCalendar().length]];
+    ['Marketing integration','Retired']];
   var html=
     '<div class="card pad" style="margin-bottom:12px">'+
       '<div class="kv"><span class="k">Active source</span><span class="v">'+esc(st.source)+'</span></div>'+
@@ -891,7 +896,7 @@ function renderPagebar(){
   var title=meta.title||'', sub='', right='', back=null;
 
   if(r.name==='dashboard'){ title='Dashboard'; sub=esc(DateUtil.fullToday())+' · AU / NZ focus'; }
-  else if(r.name==='actions'){ var s1=CRM.getStats(); title='Action Center'; sub=s1.openActions+' current actions · '+s1.overdue+' overdue'; }
+  else if(r.name==='actions'){ var s1=CRM.getStats(); title='Action Center'; sub=s1.openActions+' current actions · '+s1.overdue+' overdue follow-ups · '+s1.internalDue+' internal due'; }
   else if(r.name==='companies'){ title='Companies'; sub=CRM.getCompanies().length+' records in the book'; }
   else if(r.name==='activity'){ title='Activity Log'; sub=CRM.getActivities().length+' events · newest first'; }
   else if(r.name==='contacts'){ title='Contacts'; sub=CRM.getContacts().length+' contact records'; }
@@ -980,7 +985,7 @@ var Pages = {
     var st=CRM.getStats(), meta=CRM.getMeta();
     var acts=CRM.getActiveActions();
     var groups=Rules.groupActions(acts);
-    var todayish=groups.overdue.concat(groups.today);
+    var todayish=groups.overdue.concat(groups.today,groups.internal);
     var upcoming=acts.filter(function(a){ var n=DateUtil.dayDiff(a.due); return !isNaN(n) && n>0; }).slice(0,7);
     var important=CRM.getCompanies()
       .filter(function(c){ return !Rules.isSuppressed(c) && (c.opportunityId || c.priority==='High'); })
@@ -1001,9 +1006,10 @@ var Pages = {
         '<span class="tile-value">'+safeNum(st.actionsToday)+'</span>'+
         '<span class="tile-sub">'+(st.overdue? st.overdue+' overdue · ':'')+safeNum(st.openActions)+' current actions in total</span>'+
         '<span class="tile-ico">'+icon('bolt')+'</span></button>'+
-      '<button class="tile'+(st.overdue?' tile-alert':'')+'" data-act="filter-actions" data-val="overdue"><span class="tile-label">Overdue</span>'+
+      '<button class="tile'+(st.overdue?' tile-alert':'')+'" data-act="filter-actions" data-val="overdue"><span class="tile-label">Overdue Follow-ups</span>'+
         '<span class="tile-value">'+safeNum(st.overdue)+'</span><span class="tile-sub">'+(st.overdue?'Needs a decision today':'Nothing overdue')+'</span>'+
         '<span class="tile-ico">'+icon('alert')+'</span></button>'+
+      '<button class="tile" data-nav="#/actions"><span class="tile-label">Internal Actions Due</span><span class="tile-value">'+safeNum(st.internalDue)+'</span><span class="tile-sub">'+safeNum(st.internalOverdue)+' overdue internal reviews</span><span class="tile-ico">'+icon('search')+'</span></button>'+
       '<button class="tile tile-gold" data-nav="#/opportunities"><span class="tile-label">Active Opportunities</span>'+
         '<span class="tile-value">'+safeNum(st.activeOpportunities)+'</span><span class="tile-sub">'+safeNum(st.buyerReplies)+' buyer conversations</span>'+
         '<span class="tile-ico">'+icon('diamond')+'</span></button>'+
@@ -1038,6 +1044,9 @@ var Pages = {
     h+= todayish.length ? todayish.slice(0,5).map(function(a){ return actionCard(a,{note:true}); }).join('')
       : emptyState('Nothing due today','The outreach cadence is clear. Next action is '+(upcoming[0]? esc(DateUtil.label(upcoming[0].due)):'not scheduled')+'.','checkCircle');
 
+    var waiting=(CRM._snapshot||{}).unscheduledActions||[];
+    if(waiting.length) h+='<div class="sechead"><h2 class="seclabel">Waiting / Review Timing Needed</h2></div><div class="card pad">'+waiting.map(function(a){return '<p><a href="#/company/'+esc(a.companyId)+'">'+esc(a.company)+'</a> · '+esc(a.title)+'</p>';}).join('')+'</div>';
+
     h+='<div class="sechead"><h2 class="seclabel">Recent Activity</h2><a class="seclink" href="#/activity">Full log'+icon('chevR')+'</a></div>';
     h+='<div class="card pad">'+(recent.length? '<div class="tl">'+recent.map(activityItem).join('')+'</div>' : '<p class="hint">No activity recorded.</p>')+'</div>';
 
@@ -1069,7 +1078,8 @@ var Pages = {
     var acts=CRM.getActiveActions();
     var defs=[['all','All',acts.length],
       ['today','Today',acts.filter(function(a){return DateUtil.dayDiff(a.due)===0;}).length],
-      ['overdue','Overdue',acts.filter(function(a){var n=DateUtil.dayDiff(a.due);return !isNaN(n)&&n<0;}).length],
+      ['overdue','Overdue Follow-ups',acts.filter(function(a){return a.category==='FOLLOW_UP'&&DateUtil.dayDiff(a.due)<0;}).length],
+      ['internal','Internal Due',acts.filter(function(a){return (a.category==='INTERNAL'||a.category==='BUYER_DEVELOPMENT')&&DateUtil.dayDiff(a.due)<=0;}).length],
       ['INITIAL','Initial',acts.filter(function(a){return a.type==='INITIAL';}).length],
       ['D4','D4',acts.filter(function(a){return a.type==='D4';}).length],
       ['D10','D10',acts.filter(function(a){return a.type==='D10';}).length],
@@ -1085,7 +1095,8 @@ var Pages = {
   actionsBody:function(){
     var acts=CRM.getActiveActions(), f=UIState.filters.action;
     if(f==='today') acts=acts.filter(function(a){ return DateUtil.dayDiff(a.due)===0; });
-    else if(f==='overdue') acts=acts.filter(function(a){ var n=DateUtil.dayDiff(a.due); return !isNaN(n)&&n<0; });
+    else if(f==='overdue') acts=acts.filter(function(a){return a.category==='FOLLOW_UP'&&DateUtil.dayDiff(a.due)<0;});
+    else if(f==='internal') acts=acts.filter(function(a){return (a.category==='INTERNAL'||a.category==='BUYER_DEVELOPMENT')&&DateUtil.dayDiff(a.due)<=0;});
     else if(f==='opportunities') acts=acts.filter(function(a){ return a.context==='OPPORTUNITY'; });
     else if(f==='founder') acts=acts.filter(function(a){ return a.founderReview; });
     else if(['INITIAL','D4','D10','D20','MONTHLY'].indexOf(f)>-1) acts=acts.filter(function(a){ return a.type===f; });
@@ -1093,7 +1104,7 @@ var Pages = {
     if(!acts.length) return emptyState('No actions in this view','No authoritative scheduled next action matches this filter. Undated instructions remain on company and opportunity records.','checkCircle');
 
     var g=Rules.groupActions(acts);
-    var sections=[['overdue','Overdue','g-over'],['today','Today','g-today'],['tomorrow','Tomorrow','g-tomorrow'],['week','This Week','g-week'],['later','Later','g-later']];
+    var sections=[['overdue','Overdue Follow-ups','g-over'],['today','Today','g-today'],['tomorrow','Tomorrow','g-tomorrow'],['week','This Week','g-week'],['later','Later','g-later']];
     var h='';
     sections.forEach(function(s){
       var list=g[s[0]]; if(!list.length) return;
@@ -1101,6 +1112,7 @@ var Pages = {
         list.map(function(a){ return actionCard(a,{note:f!=='all'}); }).join('')+'</div>';
     });
     h+='<div class="note">'+icon('shield')+'<span>Completed history remains on company records. Future draft copy and calendar dates never create due actions.</span></div>';
+    if(g.internal.length) h += '<div class="sechead"><h2 class="seclabel">Overdue Internal / Commercial Reviews</h2></div>'+g.internal.map(function(a){return actionCard(a,{note:true});}).join('');
     return h;
   },
 
@@ -1513,21 +1525,7 @@ var Pages = {
     return h;
   },
 
-  marketing:function(){
-    var items=CRM.getMarketingCalendar();
-    if(UIState.marketingView==='month') return Pages.marketingMonth(items);
-    var upcoming=items.filter(function(i){ var n=DateUtil.dayDiff(i.date); return !isNaN(n)&&n>=0; });
-    var past=items.filter(function(i){ var n=DateUtil.dayDiff(i.date); return !isNaN(n)&&n<0; }).reverse();
-    var h='<div class="banner">'+icon('megaphone')+'<p>Marketing only — campaigns, website, content, social and events. Sales outreach lives in the <a href="#/actions" style="font-weight:700;text-decoration:underline">Action Center</a> and is never mixed in here.</p></div>';
-    h+='<div class="group"><div class="grouphead g-today"><span class="gl">Upcoming</span><span class="gc">'+upcoming.length+'</span><span class="gr"></span></div>'+
-      '<div class="card pad">'+(upcoming.length? upcoming.map(mkItem).join('') : '<p class="hint">Nothing scheduled.</p>')+'</div></div>';
-    if(past.length){
-      h+='<div class="group"><div class="grouphead g-week"><span class="gl">Recently Completed</span><span class="gc">'+past.length+'</span><span class="gr"></span></div>'+
-        '<div class="card pad" style="opacity:.85">'+past.map(mkItem).join('')+'</div></div>';
-    }
-    h+='<div class="note">'+icon('calendar')+'<span>Marketing records are read from the private Master Commercial Calendar. Statuses: Idea · Planned · Draft · In Progress · Confirmed · Completed.</span></div>';
-    return h;
-  },
+  marketing:function(){ return emptyState('Marketing integration retired','Sales actions come from the SHALVADZE CRM.','calendar'); },
   marketingMonth:function(items){
     var base=DateUtil.today();
     var view=new Date(base.getFullYear(), base.getMonth()+UIState.calOffset, 1);
@@ -1565,7 +1563,7 @@ var Pages = {
   settings:function(){
     var st=CRM.state, meta=CRM.getMeta();
     var cache=Cache.meta(CRM_CONFIG.cacheKey);
-    var h='<div class="banner ink">'+icon('lock')+'<p><b style="color:#EDE6D6">Read-only live viewer.</b> Private CRM and marketing-calendar sources remain the source of truth. This app cannot add, edit, delete, approve, send or change status.</p></div>';
+    var h='<div class="banner ink">'+icon('lock')+'<p><b style="color:#EDE6D6">Read-only live viewer.</b> The private SHALVADZE CRM remains the source of truth. This app cannot add, edit, delete, approve, send or change status.</p></div>';
 
     h+='<div class="sechead" style="margin-top:14px"><h2 class="seclabel">Data Source</h2></div>';
     h+='<div class="card pad">'+
@@ -1583,12 +1581,12 @@ var Pages = {
     '</div>';
     h+='<div style="display:flex;gap:9px;margin-top:10px">'+
       '<button class="btn btn-dark" style="flex:1" data-act="refresh">'+icon('refresh')+'Refresh</button></div>';
-    h+='<div class="note">'+icon('lock')+'<span>The backend verifies the Firebase ID token before reading either private source. The frontend receives one normalized snapshot and never receives a Drive file directly.</span></div>';
+    h+='<div class="note">'+icon('lock')+'<span>The backend verifies the Firebase ID token before reading the private CRM. The frontend receives one normalized snapshot and never receives a Drive file directly.</span></div>';
 
     var arch=[
-      ['Private CRM sources','SHALVADZE_CRM supplies the current UI data; the separate Master Commercial Calendar supplies Marketing Calendar records.',false],
-      ['Authenticated Firebase backend','Verifies the Firebase ID token and authorized email, then reads both private sources server-side with read-only scopes.',false],
-      ['Normalized snapshot','Returns companies, contacts, actions, activities, buyer intelligence, opportunities, drafts and marketingCalendar in one payload.',false],
+      ['Private CRM sources','SHALVADZE_CRM supplies current sales data. Marketing Calendar integration is retired.',false],
+      ['Authenticated Firebase backend','Verifies the Firebase ID token and authorized email, then reads the private CRM server-side with read-only scopes.',false],
+      ['Normalized snapshot','Returns companies, contacts, actions, activities, buyer intelligence, opportunities and drafts in one payload.',false],
       ['CRM data service','window.CRM — getCompanies(), getCompanyById(), getActions(), getActiveActions(), getActivities(), getOpportunities(), getDrafts(), getMarketingCalendar(). Handles caching, loading and error state.',false],
       ['Rules engine','Cadence and suppression logic: one operational action per company, nurture / DNC / hold suppression, buyer reply supersedes the cold sequence.',false],
       ['UI layer','Router to Pages to Components. Pure functions of CRM data plus UIState. Never touches localStorage or fetch directly.',false]
